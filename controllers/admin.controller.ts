@@ -252,14 +252,30 @@ export const adminDailyStats = async (_req: Request, res: Response) => {
 // ==============================
 export const adminExportLeads = async (_req: Request, res: Response) => {
   try {
+    // Fetch all leads sorted by newest first
     const leads = await Lead.find().sort({ createdAt: -1 });
 
-    if (!leads.length) return res.status(404).json({ success: false, error: "No leads found" });
+    if (!leads.length)
+      return res.status(404).json({ success: false, error: "No leads found" });
 
-    const fields = ["name", "email", "phone", "status", "message", "createdAt"];
+    // Map fields according to your model
+    const fields = [
+      { label: "Full Name", value: "fullName" },
+      { label: "Email", value: "email" },
+      { label: "Phone", value: "phone" },
+      { label: "Phone Verified", value: "phoneVerified" },
+      { label: "Planned Purchase Time", value: "whenAreYouPlanningToPurchase" },
+      { label: "Budget", value: "whatIsYourBudget" },
+      { label: "Message", value: "message" },
+      { label: "Source", value: "source" },
+      { label: "Status", value: "status" },
+      { label: "Created At", value: (row: any) => row.createdAt.toISOString() },
+    ];
+
     const parser = new Parser({ fields });
     const csv = parser.parse(leads);
 
+    // Send CSV file
     res.header("Content-Type", "text/csv");
     res.attachment("leads-export.csv");
     res.send(csv);
