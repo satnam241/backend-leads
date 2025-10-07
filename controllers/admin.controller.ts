@@ -12,9 +12,19 @@ const FRONTEND_URL = process.env.FRONTEND_URL;
 // ==============================
 // ✅ Admin Signup (Only once)
 // ==============================
+
+
 export const adminSignup = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, name } = req.body;
+
+    // ✅ Validate name
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Name is required",
+      });
+    }
 
     const existingAdmin = await Admin.findOne();
     if (existingAdmin) {
@@ -25,7 +35,7 @@ export const adminSignup = async (req: Request, res: Response) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const admin = new Admin({ email, password: hashedPassword });
+    const admin = new Admin({ email, password: hashedPassword, name: name.trim() });
     await admin.save();
 
     res.status(201).json({ success: true, message: "Admin created successfully" });
@@ -34,6 +44,7 @@ export const adminSignup = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
+
 
 // ==============================
 // ✅ Admin Login
@@ -138,15 +149,38 @@ export const changePasswordLoggedIn = async (req: Request, res: Response) => {
 // ==============================
 // ✅ Get All Leads
 // ==============================
-export const adminGetLeads = async (_req: Request, res: Response) => {
+export const adminGetLeads = async (req: Request, res: Response) => {
   try {
-    const leads = await Lead.find().sort({ createdAt: -1 });
-    res.json({ success: true, leads });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = 10;
+
+    const leads = await Lead.find()
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    const totalLeads = await Lead.countDocuments();
+    const newLeadsCount = await Lead.countDocuments({ status: "new" });
+    const contactedCount = await Lead.countDocuments({ status: "contacted" });
+    const convertedCount = await Lead.countDocuments({ status: "converted" });
+
+    res.json({
+      success: true,
+      leads,
+      totalLeads,
+      newLeadsCount,
+      contactedCount,
+      convertedCount,
+      page,
+      totalPages: Math.ceil(totalLeads / limit),
+    });
   } catch (err) {
     console.error("Get leads error:", err);
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
+
+
 
 // ==============================
 // ✅ Update Lead
@@ -268,10 +302,10 @@ export const adminGetProfile = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: "Admin not found" });
     }
 
-    // Response bhejo
+    
     res.json({
       _id: admin._id,
-      email: admin.email || "",
+      name: admin.name || "",
     });
   } catch (err) {
     console.error("Get admin profile error:", err);
