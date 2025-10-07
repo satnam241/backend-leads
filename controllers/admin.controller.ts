@@ -153,13 +153,16 @@ export const adminGetLeads = async (req: Request, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = 10;
-
-    const leads = await Lead.find()
+    const filter: any = {};
+    if (req.query.source) {
+      filter.source = req.query.source; // e.g., "facebook"
+    }
+    const leads = await Lead.find(filter)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
 
-    const totalLeads = await Lead.countDocuments();
+    const totalLeads = await Lead.countDocuments(filter);
     const newLeadsCount = await Lead.countDocuments({ status: "new" });
     const contactedCount = await Lead.countDocuments({ status: "contacted" });
     const convertedCount = await Lead.countDocuments({ status: "converted" });
@@ -295,7 +298,6 @@ export const adminExportLeads = async (_req: Request, res: Response) => {
 // };
 export const adminGetProfile = async (req: Request, res: Response) => {
   try {
-    // Ab hum direct query se admin nikal lenge
     const admin = await Admin.findOne().select("-password");
 
     if (!admin) {
