@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  backend:
+    build: .
+    container_name: backend_app
+    restart: always
+    ports:
+      - "4520:4520"
+    env_file:
+      - .env
+    depends_on:
+      - mongo
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+  mongo:
+    image: mongo:6
+    container_name: mongo_db
+    restart: always
+    ports:
+      - "27019:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=LEAD-DB
+    volumes:
+      - mongo_data:/data/db   # persistent volume mount
+
+volumes:
+  mongo_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/mongo_data
+
+

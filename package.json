@@ -19,7 +19,7 @@
     "import": "^0.0.6",
     "json2csv": "^6.0.0-alpha.2",
     "mongoose": "^8.18.1",
-    "node-fetch": "^3.3.2",
+    "node-fetch": "^2.7.0",
     "nodemailer": "^7.0.6",
     "openai": "^5.22.1",
     "twilio": "^5.9.0",
