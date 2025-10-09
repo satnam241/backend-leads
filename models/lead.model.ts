@@ -102,8 +102,10 @@ export interface ILead extends Document {
   message?: string | null;
   source: string;
   status: "new" | "contacted" | "converted";
-  rawData?: any;
+  rawData?: any; // will store full original payload
+  extraFields?: Record<string, any>; // ✅ dynamic extra form fields
   createdAt: Date;
+  updatedAt: Date;
 }
 
 const LeadSchema: Schema = new Schema(
@@ -155,6 +157,7 @@ const LeadSchema: Schema = new Schema(
     source: {
       type: String,
       required: true,
+      default: "facebook",
     },
 
     status: {
@@ -163,14 +166,22 @@ const LeadSchema: Schema = new Schema(
       default: "new",
     },
 
+    // ✅ dynamic fields from FB form (city, state, projectName, etc.)
+    extraFields: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
+
+    // ✅ store full original payload for audit/debug
     rawData: {
       type: Schema.Types.Mixed,
+      default: {},
     },
   },
   { timestamps: true }
 );
 
-// ✅ Unique indexes but allow null (important for sparse leads)
+// ✅ Allow unique email/phone but only if present
 LeadSchema.index({ email: 1 }, { unique: true, sparse: true });
 LeadSchema.index({ phone: 1 }, { unique: true, sparse: true });
 
