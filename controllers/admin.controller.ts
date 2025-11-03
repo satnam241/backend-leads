@@ -120,7 +120,7 @@ export const changePasswordLoggedIn = async (req: Request, res: Response) => {
     let decoded: any;
 
     try {
-      decoded = jwt.verify(token, JWT_SECRET);
+      decoded = jwt.verify(token, JWT_SECRET!);
     } catch (err) {
       return res.status(401).json({ success: false, error: "Invalid token" });
     }

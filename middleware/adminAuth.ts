@@ -8,7 +8,7 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
   if (!token) return res.status(401).json({ success: false, error: "Unauthorized" });
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, JWT_SECRET!) as any;
     if (decoded.role !== "admin") {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }

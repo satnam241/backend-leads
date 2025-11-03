@@ -11,10 +11,11 @@ export const sendWhatsApp = async (to: string, message: string) => {
     if (!to.startsWith("whatsapp:")) to = "whatsapp:" + to;
 
     const res = await client.messages.create({
-      from: process.env.TWILIO_PHONE, 
+      from: process.env.TWILIO_NUMBER!,
       to,
-      body: message,
+      body,
     });
+    
 
     console.log("📱 WhatsApp sent:", res.sid);
     return true;
