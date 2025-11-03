@@ -1,0 +1,311 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.adminGetProfile = exports.adminExportLeads = exports.adminDailyStats = exports.adminDeleteLead = exports.adminUpdateLead = exports.adminGetLeads = exports.changePasswordLoggedIn = exports.forgotPassword = exports.adminLogin = exports.adminSignup = void 0;
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const json2csv_1 = require("json2csv");
+const nodemailer_1 = __importDefault(require("nodemailer"));
+const admin_model_1 = __importDefault(require("../models/admin.model"));
+const lead_model_1 = __importDefault(require("../models/lead.model"));
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
+const FRONTEND_URL = process.env.FRONTEND_URL;
+// ==============================
+// ✅ Admin Signup (Only once)
+// ==============================
+const adminSignup = async (req, res) => {
+    try {
+        const { email, password, name } = req.body;
+        // ✅ Validate name
+        if (!name || name.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: "Name is required",
+            });
+        }
+        const existingAdmin = await admin_model_1.default.findOne();
+        if (existingAdmin) {
+            return res.status(400).json({
+                success: false,
+                error: "Admin already exists. Signup disabled."
+            });
+        }
+        const hashedPassword = await bcryptjs_1.default.hash(password, 10);
+        const admin = new admin_model_1.default({ email, password: hashedPassword, name: name.trim() });
+        await admin.save();
+        res.status(201).json({ success: true, message: "Admin created successfully" });
+    }
+    catch (err) {
+        console.error("Admin signup error:", err);
+        res.status(500).json({ success: false, error: "Server error" });
+    }
+};
+exports.adminSignup = adminSignup;
+// ==============================
+// ✅ Admin Login
+// ==============================
+const adminLogin = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const admin = await admin_model_1.default.findOne({ email });
+        if (!admin) {
+            return res.status(400).json({ success: false, error: "Invalid credentials" });
+        }
+        const isMatch = await bcryptjs_1.default.compare(password, admin.password);
+        if (!isMatch) {
+            return res.status(400).json({ success: false, error: "Invalid credentials" });
+        }
+        const token = jsonwebtoken_1.default.sign({ id: admin._id, role: "admin" }, JWT_SECRET, { expiresIn: "1h" });
+        res.json({ success: true, token, admin: { id: admin._id, email: admin.email } });
+    }
+    catch (err) {
+        console.error("Admin login error:", err);
+        res.status(500).json({ success: false, error: "Server error" });
+    }
+};
+exports.adminLogin = adminLogin;
+// ==============================
+// ✅ Forgot Password
+// ==============================
+const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const admin = await admin_model_1.default.findOne({ email });
+        if (!admin)
+            return res.status(404).json({ success: false, error: "Admin not found" });
+        const token = jsonwebtoken_1.default.sign({ id: admin._id }, JWT_SECRET, { expiresIn: "15m" });
+        const resetLink = `${FRONTEND_URL}/reset-password/${token}`;
+        const transporter = nodemailer_1.default.createTransport({
+            service: "gmail",
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
+            },
+        });
+        await transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: admin.email,
+            subject: "Password Reset",
+            html: `<p>Click the link to reset your password (valid 15 mins):</p><a href="${resetLink}">${resetLink}</a>`,
+        });
+        res.json({ success: true, message: "Reset link sent to email" });
+    }
+    catch (err) {
+        console.error("Forgot password error:", err);
+        res.status(500).json({ success: false, error: "Server error" });
+    }
+};
+exports.forgotPassword = forgotPassword;
+// ==============================
+// ✅ Reset Password
+// ==============================
+// ✅ Change password after login (self-service)
+const changePasswordLoggedIn = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith("Bearer "))
+            return res.status(401).json({ success: false, error: "Unauthorized" });
+        const token = authHeader.split(" ")[1];
+        let decoded;
+        try {
+            decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
+        }
+        catch (err) {
+            return res.status(401).json({ success: false, error: "Invalid token" });
+        }
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword)
+            return res.status(400).json({ success: false, error: "Current and new password required" });
+        const admin = await admin_model_1.default.findById(decoded.id);
+        if (!admin)
+            return res.status(404).json({ success: false, error: "Admin not found" });
+        const isMatch = await bcryptjs_1.default.compare(currentPassword, admin.password);
+        if (!isMatch)
+            return res.status(400).json({ success: false, error: "Current password incorrect" });
+        admin.password = await bcryptjs_1.default.hash(newPassword, 10);
+        await admin.save();
+        res.json({ success: true, message: "Password changed successfully" });
+    }
+    catch (err) {
+        console.error("Change password error:", err);
+        res.status(500).json({ success: false, error: "Server error" });
+    }
+};
+exports.changePasswordLoggedIn = changePasswordLoggedIn;
+// ==============================
+// ✅ Get All Leads
+// ==============================
+const adminGetLeads = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = 10;
+        const filter = {};
+        if (req.query.source) {
+            filter.source = req.query.source; // e.g., "facebook"
+        }
+        const leads = await lead_model_1.default.find(filter)
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit);
+        const totalLeads = await lead_model_1.default.countDocuments(filter);
+        const newLeadsCount = await lead_model_1.default.countDocuments({ status: "new" });
+        const contactedCount = await lead_model_1.default.countDocuments({ status: "contacted" });
+        const convertedCount = await lead_model_1.default.countDocuments({ status: "converted" });
+        res.json({
+            success: true,
+            leads,
+            totalLeads,
+            newLeadsCount,
+            contactedCount,
+            convertedCount,
+            page,
+            totalPages: Math.ceil(totalLeads / limit),
+        });
+    }
+    catch (err) {
+        console.error("Get leads error:", err);
+        res.status(500).json({ success: false, error: "Server error" });
+    }
+};
+exports.adminGetLeads = adminGetLeads;
+// ==============================
+// ✅ Update Lead
+// ==============================
+const adminUpdateLead = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        if (!status)
+            return res.status(400).json({ success: false, error: "Status is required" });
+        const lead = await lead_model_1.default.findByIdAndUpdate(id, { status }, { new: true });
+        if (!lead)
+            return res.status(404).json({ success: false, error: "Lead not found" });
+        res.json({ success: true, lead });
+    }
+    catch (err) {
+        console.error("Update lead error:", err);
+        res.status(500).json({ success: false, error: "Server error" });
+    }
+};
+exports.adminUpdateLead = adminUpdateLead;
+// ==============================
+// ✅ Delete Lead
+// ==============================
+const adminDeleteLead = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const lead = await lead_model_1.default.findByIdAndDelete(id);
+        if (!lead)
+            return res.status(404).json({ success: false, error: "Lead not found" });
+        res.json({ success: true, message: "Lead deleted successfully" });
+    }
+    catch (err) {
+        console.error("Delete lead error:", err);
+        res.status(500).json({ success: false, error: "Server error" });
+    }
+};
+exports.adminDeleteLead = adminDeleteLead;
+// ==============================
+// ✅ Daily Stats
+// ==============================
+const adminDailyStats = async (_req, res) => {
+    try {
+        const stats = await lead_model_1.default.aggregate([
+            {
+                $group: {
+                    _id: {
+                        year: { $year: "$createdAt" },
+                        month: { $month: "$createdAt" },
+                        day: { $dayOfMonth: "$createdAt" },
+                    },
+                    count: { $sum: 1 },
+                },
+            },
+            { $sort: { "_id.year": -1, "_id.month": -1, "_id.day": -1 } },
+        ]);
+        res.json({ success: true, stats });
+    }
+    catch (err) {
+        console.error("Daily stats error:", err);
+        res.status(500).json({ success: false, error: "Server error" });
+    }
+};
+exports.adminDailyStats = adminDailyStats;
+// ==============================
+// ✅ Export Leads CSV
+// ==============================
+const adminExportLeads = async (_req, res) => {
+    try {
+        // Fetch all leads sorted by newest first
+        const leads = await lead_model_1.default.find().sort({ createdAt: -1 });
+        if (!leads.length)
+            return res.status(404).json({ success: false, error: "No leads found" });
+        // Map fields according to your model
+        const fields = [
+            { label: "Full Name", value: "fullName" },
+            { label: "Email", value: "email" },
+            { label: "Phone", value: "phone" },
+            { label: "Phone Verified", value: "phoneVerified" },
+            { label: "Planned Purchase Time", value: "whenAreYouPlanningToPurchase" },
+            { label: "Budget", value: "whatIsYourBudget" },
+            { label: "Message", value: "message" },
+            { label: "Source", value: "source" },
+            { label: "Status", value: "status" },
+            { label: "Created At", value: (row) => row.createdAt.toISOString() },
+        ];
+        const parser = new json2csv_1.Parser({ fields });
+        const csv = parser.parse(leads);
+        // Send CSV file
+        res.header("Content-Type", "text/csv");
+        res.attachment("leads-export.csv");
+        res.send(csv);
+    }
+    catch (err) {
+        console.error("Export leads error:", err);
+        res.status(500).json({ success: false, error: "Server error" });
+    }
+};
+exports.adminExportLeads = adminExportLeads;
+// ==============================
+// ✅ Get Admin Profile
+// ==============================
+// export const adminGetProfile = async (req: Request, res: Response) => {
+//   try {
+//     const authHeader = req.headers.authorization;
+//     if (!authHeader?.startsWith("Bearer "))
+//       return res.status(401).json({ success: false, error: "Unauthorized" });
+//     const token = authHeader.split(" ")[1];
+//     let decoded: any;
+//     try {
+//       decoded = jwt.verify(token, JWT_SECRET);
+//     } catch (err) {
+//       return res.status(401).json({ success: false, error: "Invalid token" });
+//     }
+//     const admin = await Admin.findById(decoded.id).select("-password");
+//     if (!admin) return res.status(404).json({ success: false, error: "Admin not found" });
+//     res.json({ _id: admin._id, email: admin.email || "" });
+//   } catch (err) {
+//     console.error("Get admin profile error:", err);
+//     res.status(500).json({ success: false, error: "Server error" });
+//   }
+// };
+const adminGetProfile = async (req, res) => {
+    try {
+        const admin = await admin_model_1.default.findOne().select("-password");
+        if (!admin) {
+            return res.status(404).json({ success: false, error: "Admin not found" });
+        }
+        res.json({
+            _id: admin._id,
+            name: admin.name || "",
+        });
+    }
+    catch (err) {
+        console.error("Get admin profile error:", err);
+        res.status(500).json({ success: false, error: "Server error" });
+    }
+};
+exports.adminGetProfile = adminGetProfile;
+//# sourceMappingURL=admin.controller.js.map

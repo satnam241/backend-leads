@@ -163,7 +163,8 @@ export const createLeadController = async (req: Request, res: Response) => {
         },
         { new: true }
       );
-      console.log("🔁 Updated existing lead:", lead._id.toString());
+      console.log("🔁 Updated existing lead:", lead?._id?.toString()
+      );
     } else {
       lead = new Lead({
         fullName: fullName || "Unknown User",
@@ -177,22 +178,27 @@ export const createLeadController = async (req: Request, res: Response) => {
         rawData: { ...rawData, extraFields: extracted.extraFields },
       });
       await lead.save();
-      console.log("✅ New lead saved:", lead._id.toString());
+      console.log("✅ New lead saved:", lead?._id?.toString()
+      );
     }
 
     // ✅ Send auto message (non-blocking)
     (async () => {
       try {
-        if (!lead) return res.status(404).json({ error: "Lead not found" });
-      await sendMessageService((lead._id as any).toString(), "both");
-      
+        if (!lead?._id) {
+          console.error("⚠️ Lead not found, cannot send message");
+          return;
+        }
+
+        await sendMessageService((lead._id as any).toString(), "both");
         console.log("📩 Auto message sent for", lead._id.toString());
       } catch (err) {
         console.error("⚠️ Message sending failed:", err);
       }
     })();
 
-    return res.status(existingLead ? 200 : 201).json(lead);
+    // ✅ Return response
+    return res.status(201).json(lead);
   } catch (err) {
     console.error("💥 Error in createLeadController:", err);
     return res.status(500).json({ error: "Failed to create lead" });

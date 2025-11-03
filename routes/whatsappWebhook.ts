@@ -88,7 +88,8 @@ router.post("/", async (req: Request, res: Response) => {
 
     try {
       // ensure sendMessageService gets string id
-      await sendMessageService(lead._id.toString(), "both");
+      await sendMessageService(String((lead as any)._id), "both");
+
       console.log("📲 WhatsApp + Email auto-reply sent");
     } catch (err) {
       console.error("❌ sendMessageService error:", err);

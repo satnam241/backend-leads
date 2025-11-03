@@ -1,42 +1,18 @@
 {
   "compilerOptions": {
-    /* === File Paths === */
-    "rootDir": "./src",
-    "outDir": "./dist",
-
-    /* === Module & Target === */
-    "module": "nodenext",
-    "target": "esnext",
-
-    /* === Type Declarations === */
+    "target": "ES2020",
+    "module": "commonjs",
+    "outDir": "dist",
+    "rootDir": ".",
     "lib": ["esnext"],
     "types": ["node"],
-
-    /* === Output Settings === */
     "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
-
-    /* === Type Checking === */
     "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "skipLibCheck": true,
-
-    /* === JSX for React (if frontend part shares tsconfig) === */
-    "jsx": "react-jsx",
-
-    /* === Module Resolution & Misc === */
-    "moduleResolution": "nodenext",
     "esModuleInterop": true,
+    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-
-    /* === Extra Clean Options === */
-    "isolatedModules": true,
-    "noUncheckedSideEffectImports": false,
-    "allowSyntheticDefaultImports": true
+    "resolveJsonModule": true
   },
-  "include": ["src/**/*", "types"],
+  "include": ["**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

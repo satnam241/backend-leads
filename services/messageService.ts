@@ -28,7 +28,12 @@ export const sendMessageService = async (
   if ((messageType === "email" || messageType === "both") && (lead.email || adminEmail)) {
     try {
       const emailToSend = lead.email || adminEmail;
-      await sendEmail(emailToSend, "Follow-up from Sales Team", finalMessage);
+      if (emailToSend) {
+        await sendEmail(emailToSend, "Follow-up from Sales Team", finalMessage);
+      } else {
+        console.log("⚠️ No email found to send follow-up message.");
+      }
+      
       sentTo.email = emailToSend;
       console.log(`📧 Email sent to: ${emailToSend}`);
     } catch (err) {

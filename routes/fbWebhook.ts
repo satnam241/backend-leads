@@ -195,7 +195,8 @@ router.post("/", async (req: Request, res: Response) => {
 
           existing.rawData = leadData;
           await existing.save();
-          console.log("🔁 Updated existing lead:", existing._id.toString());
+          console.log("📩 Updated existing lead:", String((existing as any)._id));
+
         } else {
           // 🆕 Save new lead in DB
           await Lead.create({
