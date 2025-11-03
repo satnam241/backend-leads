@@ -46,6 +46,8 @@
 //   }
 // };
 // controllers/leadController.ts
+
+
 import { Request, Response } from "express";
 import Lead from "../models/lead.model";
 import { sendMessageService } from "../services/messageService";
@@ -181,7 +183,9 @@ export const createLeadController = async (req: Request, res: Response) => {
     // ✅ Send auto message (non-blocking)
     (async () => {
       try {
-        await sendMessageService(lead._id.toString(), "both");
+        if (!lead) return res.status(404).json({ error: "Lead not found" });
+      await sendMessageService((lead._id as any).toString(), "both");
+      
         console.log("📩 Auto message sent for", lead._id.toString());
       } catch (err) {
         console.error("⚠️ Message sending failed:", err);

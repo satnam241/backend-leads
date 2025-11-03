@@ -13,7 +13,7 @@ export const sendWhatsApp = async (to: string, message: string) => {
     const res = await client.messages.create({
       from: process.env.TWILIO_NUMBER!,
       to,
-      body,
+      body:message,
     });
     
 

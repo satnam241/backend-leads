@@ -19,7 +19,8 @@ export const authenticateJWT = (
   const token = authHeader.split(" ")[1];
 
   jwt.verify(token, JWT_SECRET||"", (err, user) => {
-    if (err) return res.status(403).json({ message: "Invalid token" });
+    if (!token) return res.status(401).json({ message: "Token missing" });
+
     req.user = user;
     next();
   });
