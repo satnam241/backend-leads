@@ -96,22 +96,17 @@
 // });
 
 // export default router;
-
-
 import express, { Request, Response } from "express";
-import fetch from "node-fetch";
 import dotenv from "dotenv";
-import Lead from "../models/lead.model"; // 🧩 Mongoose model for leads
-import { normalizePhone } from "../services/phone";
+import fetch from "node-fetch";
+import Lead from "../models/lead.model"; // ✅ your existing schema
+import { normalizePhone } from "../services/phone"; // optional helper
 
 dotenv.config();
 const router = express.Router();
 
-/**
- * ✅ Facebook Webhook Verification Route
- * Called once when you connect the webhook URL in FB App dashboard
- */
-router.get("/", (req: Request, res: Response) => {
+// 🔹 Verify webhook (called by Facebook when setting up)
+router.get("/facebook", (req: Request, res: Response) => {
   try {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
@@ -130,15 +125,12 @@ router.get("/", (req: Request, res: Response) => {
   }
 });
 
-/**
- * ✅ Facebook Lead Webhook Receiver
- * This route automatically receives real-time leads from Facebook Lead Forms
- */
-router.post("/", async (req: Request, res: Response) => {
+// 🔹 Receive real-time lead data
+router.post("/facebook", async (req: Request, res: Response) => {
   try {
     const entries = req.body.entry || [];
 
-    // 🟢 Facebook expects quick ACK (200 OK) to prevent retry
+    // 🟢 Facebook expects a quick 200 OK response
     res.sendStatus(200);
 
     for (const entry of entries) {
@@ -146,9 +138,13 @@ router.post("/", async (req: Request, res: Response) => {
         if (change.field !== "leadgen") continue;
 
         const leadgenId = change.value.leadgen_id;
+        const form_id = change.value.form_id;
+        const page_id = change.value.page_id;
 
-        // 🔗 Fetch full lead data from Facebook Graph API
-        const url = `https://graph.facebook.com/v23.0/${leadgenId}?access_token=${process.env.FB_PAGE_ACCESS_TOKEN}&fields=field_data,created_time,ad_id,form_id,ad_name,adset_name,campaign_name,platform`;
+        console.log("📩 Received FB Lead:", { leadgenId, form_id, page_id });
+
+        // 🔗 Fetch complete lead data from Graph API
+        const url = `https://graph.facebook.com/v20.0/${leadgenId}?access_token=${process.env.FB_PAGE_ACCESS_TOKEN}`;
 
         let leadData: any;
         try {
@@ -164,51 +160,64 @@ router.post("/", async (req: Request, res: Response) => {
           continue;
         }
 
-        // 🧩 Convert FB field_data array → key:value object
+        // 🔹 Convert field_data array → object
         const fields: Record<string, any> = {};
         for (const f of leadData.field_data || []) {
           fields[f.name] = f.values?.[0] ?? "";
         }
 
-        // ✅ Extract important info (fallbacks included)
-        const fullName = fields.full_name || fields.name || "Unknown User";
+        // ✅ Extract key info
+        const fullName =
+          fields.full_name || fields.name || fields.first_name || "Unknown User";
         const email = fields.email || null;
         const rawPhone = fields.phone_number || fields.phone || null;
-        const phone = normalizePhone(rawPhone);
+        const phone = normalizePhone ? normalizePhone(rawPhone) : rawPhone;
         const phoneVerified =
           fields.phone_number_verified === "true" ? true : false;
 
-        // 🎯 Check if lead already exists (deduplication)
-        let existing = null;
-        if (phone) existing = await Lead.findOne({ phone });
-        if (!existing && email) existing = await Lead.findOne({ email });
+        const whenAreYouPlanningToPurchase =
+          fields.when_are_you_planning_to_purchase || null;
+        const whatIsYourBudget = fields.what_is_your_budget || null;
+        const message = fields.message || null;
 
-        if (existing) {
-          // 🔁 Update existing lead with missing or new info
-          if (!existing.phone && phone) existing.phone = phone;
-          if (!existing.email && email) existing.email = email;
-          if (phoneVerified) existing.phoneVerified = true;
+        // 🎯 Deduplication check (based on phone/email)
+        let existingLead = null;
+        if (phone) existingLead = await Lead.findOne({ phone });
+        if (!existingLead && email) existingLead = await Lead.findOne({ email });
 
-          // Update extra fields dynamically
-          existing.extraFields = {
-            ...existing.extraFields,
+        if (existingLead) {
+          // 🔁 Update missing or new fields
+          if (!existingLead.phone && phone) existingLead.phone = phone;
+          if (!existingLead.email && email) existingLead.email = email;
+          if (phoneVerified) existingLead.phoneVerified = true;
+
+          existingLead.extraFields = {
+            ...existingLead.extraFields,
             ...fields,
           };
 
-          existing.rawData = leadData;
-          await existing.save();
-          console.log("📩 Updated existing lead:", String((existing as any)._id));
+          existingLead.rawData = leadData;
+          existingLead.whenAreYouPlanningToPurchase =
+            whenAreYouPlanningToPurchase || existingLead.whenAreYouPlanningToPurchase;
+          existingLead.whatIsYourBudget =
+            whatIsYourBudget || existingLead.whatIsYourBudget;
+          existingLead.message = message || existingLead.message;
 
+          await existingLead.save();
+          console.log("♻️ Updated existing lead:", existingLead._id);
         } else {
-          // 🆕 Save new lead in DB
+          // 🆕 Create new lead
           await Lead.create({
             fullName,
             email,
             phone,
             phoneVerified,
+            whenAreYouPlanningToPurchase,
+            whatIsYourBudget,
+            message,
             source: "facebook",
-            extraFields: fields, // 🧩 Save all dynamic form fields
-            rawData: leadData, // Raw FB payload for reference
+            extraFields: fields,
+            rawData: leadData,
           });
 
           console.log("🆕 New Facebook lead saved:", email || phone);
@@ -216,7 +225,7 @@ router.post("/", async (req: Request, res: Response) => {
       }
     }
   } catch (err) {
-    console.error("❌ FB webhook top-level error:", err);
+    console.error("❌ FB webhook main error:", err);
   }
 });
 

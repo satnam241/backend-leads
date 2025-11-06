@@ -26,7 +26,8 @@ app.get("/", (_req, res) => {
   res.send("Backend is running ✅");
 });
 
-app.use("/api/webhook/facebook", fbWebhook);
+app.get("/", (_, res) => res.send("🚀 Facebook Webhook API Live!"));
+app.use("/api/webhook", fbWebhook);
 app.use("/api/webhook/twilio", twilioWebhook);
 app.use("/api/leads", leadsRoute);
 app.use("/api/admin", AdminRoute);
