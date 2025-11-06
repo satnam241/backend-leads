@@ -204,3 +204,99 @@ export const createLeadController = async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Failed to create lead" });
   }
 };
+
+export const updateLeadController = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    if (!id) {
+      return res.status(400).json({ error: "Lead ID is required" });
+    }
+
+    const existingLead = await Lead.findById(id);
+    if (!existingLead) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    // ✅ Merge updates (safely preserve nested fields)
+    const updatedLead = await Lead.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          ...updates,
+          rawData: {
+            ...existingLead.rawData,
+            ...updates.rawData,
+            extraFields: {
+              ...existingLead.rawData?.extraFields,
+              ...updates.rawData?.extraFields,
+            },
+          },
+        },
+      },
+      { new: true }
+    );
+
+    console.log("📝 Lead updated:", updatedLead?._id?.toString());
+    return res.status(200).json(updatedLead);
+  } catch (err) {
+    console.error("💥 Error in updateLeadController:", err);
+    return res.status(500).json({ error: "Failed to update lead" });
+  }
+};
+
+/**
+ * ❌ Delete lead by ID
+ */
+export const deleteLeadController = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: "Lead ID is required" });
+    }
+
+    const lead = await Lead.findByIdAndDelete(id);
+
+    if (!lead) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+
+    console.log("🗑️ Lead deleted:", lead?._id?.toString());
+    return res.status(200).json({ message: "Lead deleted successfully" });
+  } catch (err) {
+    console.error("💥 Error in deleteLeadController:", err);
+    return res.status(500).json({ error: "Failed to delete lead" });
+  }
+};
+
+/**
+ * 📋 Get all leads or a single lead by ID / Query
+ */
+export const getLeadsController = async (req: Request, res: Response) => {
+  try {
+    const { id, email, phone, source } = req.query;
+
+    // ✅ Fetch single lead by ID if provided
+    if (id) {
+      const lead = await Lead.findById(id);
+      if (!lead) return res.status(404).json({ error: "Lead not found" });
+      return res.status(200).json(lead);
+    }
+
+    // ✅ Apply filters dynamically
+    const filters: Record<string, any> = {};
+    if (email) filters.email = email;
+    if (phone) filters.phone = phone;
+    if (source) filters.source = source;
+
+    const leads = await Lead.find(filters).sort({ createdAt: -1 });
+    console.log(`📦 Fetched ${leads.length} leads`);
+
+    return res.status(200).json(leads);
+  } catch (err) {
+    console.error("💥 Error in getLeadsController:", err);
+    return res.status(500).json({ error: "Failed to fetch leads" });
+  }
+};
