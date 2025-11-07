@@ -110,6 +110,12 @@ router.get("/facebook", (req: Request, res: Response) => {
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
+    // Agar token hi undefined hai, Facebook sirf ping kar raha hai → ignore
+    if (!mode && !token) {
+      console.log("⚠️ Facebook sent a blank ping (no verification token). Ignoring...");
+      return res.sendStatus(200);
+    }
+
     if (
       mode === "subscribe" &&
       token?.toString().trim() === process.env.FB_VERIFY_TOKEN?.trim()
