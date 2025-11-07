@@ -9,6 +9,8 @@ import twilioWebhook from "./routes/whatsappWebhook";
 import leadsRoute from "./routes/leads.route";
 import AdminRoute from "./routes/admin.routes";
 import messageRoutes from "./routes/message.routes";
+import debugRoute from "./routes/debug.route";
+
 dotenv.config();
 connectDB();
 
@@ -32,6 +34,7 @@ app.use("/api/webhook/twilio", twilioWebhook);
 app.use("/api/leads", leadsRoute);
 app.use("/api/admin", AdminRoute);
 app.use("/api/leads", messageRoutes);
+app.use("/api/debug", debugRoute);
 
 
 const PORT = process.env.PORT || 4520;

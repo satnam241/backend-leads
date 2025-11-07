@@ -104,26 +104,33 @@ import { normalizePhone } from "../services/phone"; // optional helper
 
 dotenv.config();
 const router = express.Router();
-
-// 🔹 Verify webhook (called by Facebook when setting up)
 router.get("/facebook", (req: Request, res: Response) => {
   try {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
-    if (mode === "subscribe" && token === process.env.FB_VERIFY_TOKEN) {
+    if (
+      mode === "subscribe" &&
+      token?.toString().trim() === process.env.FB_VERIFY_TOKEN?.trim()
+    ) {
       console.log("✅ Facebook Webhook verified successfully!");
+      console.log("🔹 Facebook sent:", token);
+      console.log("🔹 ENV token:", process.env.FB_VERIFY_TOKEN);
       return res.status(200).send(challenge);
     } else {
       console.warn("❌ Webhook verification failed — invalid token.");
+      console.log("🔹 Facebook sent:", token);
+      console.log("🔹 ENV token:", process.env.FB_VERIFY_TOKEN);
       return res.sendStatus(403);
     }
+
   } catch (error) {
     console.error("❌ Verification error:", error);
     return res.sendStatus(500);
   }
 });
+
 
 // 🔹 Receive real-time lead data
 router.post("/facebook", async (req: Request, res: Response) => {
