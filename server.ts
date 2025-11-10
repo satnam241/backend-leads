@@ -10,6 +10,8 @@ import leadsRoute from "./routes/leads.route";
 import AdminRoute from "./routes/admin.routes";
 import messageRoutes from "./routes/message.routes";
 import debugRoute from "./routes/debug.route";
+import activityRoutes from "./routes/activity.routes";
+
 
 dotenv.config();
 connectDB();
@@ -35,6 +37,8 @@ app.use("/api/leads", leadsRoute);
 app.use("/api/admin", AdminRoute);
 app.use("/api/leads", messageRoutes);
 app.use("/api/debug", debugRoute);
+app.use("/api/activity", activityRoutes);
+
 
 
 const PORT = process.env.PORT || 4520;
