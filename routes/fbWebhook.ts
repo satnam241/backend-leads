@@ -114,34 +114,40 @@ const VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
 if (!PAGE_TOKEN) console.warn("⚠️ Missing FB_PAGE_ACCESS_TOKEN in .env");
 if (!VERIFY_TOKEN) console.warn("⚠️ Missing FB_VERIFY_TOKEN in .env");
 
-/**
- * ===========================================================
- * ✅ STEP 1 — VERIFY WEBHOOK (GET)
- * ===========================================================
- * Facebook calls this GET endpoint once to verify ownership.
- * Must return the 'hub.challenge' if token matches.
- */
+
 router.get("/facebook", (req: Request, res: Response) => {
-  const mode = req.query["hub.mode"];
-  const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
+  try {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
 
-  console.log("📩 Webhook verification attempt:", { mode, token, challenge });
+    // 🧠 Debug log to always see incoming params
+    console.log("📩 Webhook verification attempt:", { mode, token, challenge });
 
-  if (!mode && !token && !challenge) {
+    // ✅ Case 1 — Facebook verification request
+    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+      console.log("✅ Facebook webhook verified successfully!");
+      return res.status(200).send(challenge);
+    }
+
+    // ⚠️ Case 2 — Missing params (like when Postman/Render just pings the route)
+    if (!mode && !token && !challenge) {
+      return res
+        .status(200)
+        .send("✅ Facebook Webhook endpoint is live. Please verify using hub params.");
+    }
+
+    // ❌ Case 3 — Invalid verify token
+    console.warn("❌ Webhook verification failed (invalid verify token)");
     return res
-      .status(200)
-      .send("✅ Facebook Webhook endpoint is live. Please verify using hub params.");
+      .status(403)
+      .send("❌ Invalid verify token or missing params. Check your .env VERIFY_TOKEN.");
+  } catch (err) {
+    console.error("❌ Webhook verification error:", err);
+    return res.status(500).send("Internal server error during verification");
   }
-
-  if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    console.log("✅ Facebook webhook verified successfully!");
-    return res.status(200).send(challenge);
-  }
-
-  console.warn("❌ Webhook verification failed (invalid verify token)");
-  return res.status(403).send("❌ Invalid verify token or missing params.");
 });
+
 
 /**
  * ===========================================================
