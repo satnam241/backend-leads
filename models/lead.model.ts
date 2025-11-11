@@ -196,6 +196,9 @@ export interface ILead extends Document {
   phoneVerified?: boolean;
   source?: string;
   formId?: string | null;
+  whenAreYouPlanningToPurchase?: string | null;
+  whatIsYourBudget?: string | null;
+  message?: string | null;
   extraFields?: Record<string, any>;
   rawData?: any;
   receivedAt?: Date;
@@ -211,6 +214,12 @@ const LeadSchema = new Schema<ILead>(
     phoneVerified: { type: Boolean, default: false },
     source: { type: String, default: "facebook" },
     formId: { type: String },
+
+    // 🆕 Add these fields
+    whenAreYouPlanningToPurchase: { type: String, default: null },
+    whatIsYourBudget: { type: String, default: null },
+    message: { type: String, default: null },
+
     extraFields: { type: Schema.Types.Mixed, default: {} },
     rawData: { type: Schema.Types.Mixed },
     receivedAt: { type: Date }

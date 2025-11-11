@@ -146,10 +146,7 @@ export const createLeadController = async (req: Request, res: Response) => {
             phone,
             phoneVerified: phoneVerified ?? existingLead.phoneVerified,
             whenAreYouPlanningToPurchase:
-              whenAreYouPlanningToPurchase || existingLead.whenAreYouPlanningToPurchase,
-            whatIsYourBudget:
-              whatIsYourBudget || existingLead.whatIsYourBudget,
-            message: message || existingLead.message,
+            
             source,
             rawData: {
               ...existingLead.rawData,
