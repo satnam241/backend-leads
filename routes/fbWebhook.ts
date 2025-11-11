@@ -102,9 +102,9 @@ import express, { Request, Response } from "express";
 import Lead from "../models/lead.model";
 import { normalizePhone } from "../services/phone";
 import fetchWithRetry from "../services/fetchWithRetry";
-
+import dotenv from "dotenv";
 const router = express.Router();
-
+dotenv.config();
 // 🔹 Environment Variables
 const FB_VERSION = process.env.FB_GRAPH_VERSION || "v20.0";
 const PAGE_TOKEN = process.env.FB_PAGE_ACCESS_TOKEN;
