@@ -1,6 +1,5 @@
+// services/emailService.ts
 import nodemailer from "nodemailer";
-import dotenv from "dotenv";
-dotenv.config();
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -10,14 +9,20 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// emailService.ts
-export const sendEmail = async (to: string, subject: string, text: string) => {
-  try {
-    await transporter.sendMail({ from: `"Lead System" <${process.env.EMAIL_USER}>`, to, subject, text });
-    console.log(`📧 Email sent to: ${to}`); // ✅ log
-    return true;
-  } catch (err) {
-    console.error("Email error:", err); // ✅ error log
-    throw err;
-  }
+export const sendEmail = async (
+  to: string,
+  subject: string,
+  text: string,
+  attachments?: { filename: string; path?: string; contentType?: string }[]
+) => {
+  const mailOptions: any = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    text,
+  };
+
+  if (attachments && attachments.length) mailOptions.attachments = attachments;
+
+  return transporter.sendMail(mailOptions);
 };

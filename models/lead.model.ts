@@ -204,6 +204,20 @@ export interface ILead extends Document {
   receivedAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
+
+  // reminder fields
+  reminderCount?: number;
+  lastReminderSent?: Date | null;
+  status?: string; // new | contacted | closed
+
+  // 🆕 follow-up scheduling fields
+  followUp?: {
+    date?: Date | null;            // exact next follow-up date/time
+    recurrence?: string | null;    // "once" | "tomorrow" | "3days" | "weekly"
+    message?: string | null;       // custom follow-up message
+    whatsappOptIn?: boolean;       // whether to send whatsapp
+    active?: boolean;              // is follow-up active
+  };
 }
 
 const LeadSchema = new Schema<ILead>(
@@ -215,14 +229,27 @@ const LeadSchema = new Schema<ILead>(
     source: { type: String, default: "facebook" },
     formId: { type: String },
 
-    // 🆕 Add these fields
     whenAreYouPlanningToPurchase: { type: String, default: null },
     whatIsYourBudget: { type: String, default: null },
     message: { type: String, default: null },
 
     extraFields: { type: Schema.Types.Mixed, default: {} },
     rawData: { type: Schema.Types.Mixed },
-    receivedAt: { type: Date }
+    receivedAt: { type: Date },
+
+    // reminder fields
+    reminderCount: { type: Number, default: 0 },
+    lastReminderSent: { type: Date, default: null },
+    status: { type: String, default: "new" }, // new, contacted, closed
+
+    // 🆕 follow-up scheduling
+    followUp: {
+      date: { type: Date, default: null },
+      recurrence: { type: String, default: null },
+      message: { type: String, default: null },
+      whatsappOptIn: { type: Boolean, default: false },
+      active: { type: Boolean, default: false }
+    }
   },
   { timestamps: true }
 );

@@ -5,6 +5,11 @@ import { Parser } from "json2csv";
 import nodemailer from "nodemailer";
 import Admin from "../models/admin.model";
 import Lead from "../models/lead.model";
+import fs from "fs";
+import { parse } from "csv-parse";
+import ImportLeadsModal from "./ImportLeadsModal";
+import * as XLSX from "xlsx";
+
 
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -284,6 +289,105 @@ export const adminExportLeads = async (_req: Request, res: Response) => {
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
+export const importLeadsController = async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "Please upload a file" });
+    }
+
+    const filePath = req.file.path;
+    const ext = req.file.originalname.split(".").pop()?.toLowerCase();
+
+    // ------------------------------
+    // UTF-16 / NULL BYTE CLEANER
+    // ------------------------------
+    const cleanUTF16 = (value: any) => {
+      if (value == null) return null;
+      if (typeof value !== "string") return value;
+
+      let str = value.replace(/\u0000/g, ""); // remove null bytes
+      str = str.replace(/^"|"$/g, ""); // remove quotes
+      str = str.trim();
+
+      return str || null;
+    };
+
+    let data: any[] = [];
+
+    // Read Excel / CSV
+    const workbook = XLSX.readFile(filePath, { cellDates: true });
+    const sheetName = workbook.SheetNames[0];
+    data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+      defval: null,
+      raw: true,
+    });
+
+    // ⭐ Clean all rows from UTF-16 garbage
+    const cleanedData = data.map((row: any) => {
+      const cleanedRow: any = {};
+      for (const [key, val] of Object.entries(row)) {
+        cleanedRow[key] = cleanUTF16(val);
+      }
+      return cleanedRow;
+    });
+
+    // ------------------------------
+    // SAVE DATA EXACT AS IT IS
+    // ------------------------------
+    for (const row of cleanedData) {
+      await Lead.create({
+        fullName:
+          row.fullName ||
+          row.name ||
+          row["Full Name"] ||
+          row["full_name"] ||
+          "Unknown User",
+
+        email:
+          row.email && row.email !== "null"
+            ? row.email.toLowerCase().trim()
+            : `noemail_${Date.now()}_${Math.random()}@import.com`,
+
+        phone:
+          row.phone ||
+          row.mobile ||
+          row["Phone Number"] ||
+          row["Mobile Number"] ||
+          null,
+
+        message: row.message || row.Message || null,
+        whenAreYouPlanningToPurchase:
+          row.whenAreYouPlanningToPurchase ||
+          row.PurchaseTime ||
+          null,
+
+        whatIsYourBudget:
+          row.whatIsYourBudget ||
+          row.Budget ||
+          null,
+
+        source: "import",
+
+        // ⭐ Save original cleaned row
+        rawData: row,
+        extraFields: row,
+
+        receivedAt: new Date(),
+      });
+    }
+
+    return res.json({
+      message: "Leads imported successfully",
+      total: cleanedData.length,
+      sample: cleanedData[0], // preview clean data
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Import failed" });
+  }
+};
+
 
 // ==============================
 // ✅ Get Admin Profile
@@ -328,5 +432,58 @@ export const adminGetProfile = async (req: Request, res: Response) => {
   } catch (err) {
     console.error("Get admin profile error:", err);
     res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+// ==============================
+// ✅ Get Leads That Need Reminder (Popup)
+// ==============================
+export const getReminderLeads = async (req: Request, res: Response) => {
+  try {
+    const leads = await Lead.find({
+      reminderCount: { $gt: 0, $lte: 5 },
+      status: { $ne: "closed" }
+    }).sort({ lastReminderSent: -1 });
+
+    return res.json({ success: true, leads });
+  } catch (error) {
+    console.error("Get reminder leads error:", error);
+    return res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+// ==============================
+// ✅ Mark Lead as Contacted (Reset Reminder)
+// ==============================
+export const markAsContacted = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    await Lead.findByIdAndUpdate(id, {
+      status: "contacted",
+      reminderCount: 0
+    });
+
+    return res.json({ success: true, message: "Lead marked as contacted" });
+  } catch (error) {
+    console.error("Mark contacted error:", error);
+    return res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+// ==============================
+// ✅ Dashboard – Pending Reminder Count
+// ==============================
+export const getPendingReminderCount = async (req: Request, res: Response) => {
+  try {
+    const count = await Lead.countDocuments({
+      status: { $ne: "closed" },
+      reminderCount: { $gte: 1, $lte: 5 }
+    });
+
+    return res.json({ success: true, pendingReminders: count });
+  } catch (error) {
+    console.error("Pending reminder count error:", error);
+    return res.status(500).json({ success: false, error: "Server error" });
   }
 };

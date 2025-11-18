@@ -110,9 +110,10 @@ const FB_VERSION = process.env.FB_GRAPH_VERSION || "v20.0";
 const PAGE_TOKEN = process.env.FB_PAGE_ACCESS_TOKEN;
 const VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
 
+
 // 🔹 Safety checks
-if (!PAGE_TOKEN) console.warn("⚠️ Missing FB_PAGE_ACCESS_TOKEN in .env");
-if (!VERIFY_TOKEN) console.warn("⚠️ Missing FB_VERIFY_TOKEN in .env");
+if (!PAGE_TOKEN) console.log("⚠️ Missing FB_PAGE_ACCESS_TOKEN in .env");
+if (!VERIFY_TOKEN) console.log("⚠️ Missing FB_VERIFY_TOKEN in .env");
 
 
 router.get("/facebook", (req: Request, res: Response) => {
@@ -194,10 +195,12 @@ router.post("/facebook", async (req: Request, res: Response) => {
         let leadData: any;
         try {
           leadData = await fetchWithRetry(url, 3, 800);
+          console.log("✅ Lead data fetched:", leadData);
         } catch (err: any) {
           console.error(`❌ Fetch failed for lead ${leadgenId}:`, err.message);
           continue;
         }
+        
 
         if (!leadData?.field_data) {
           console.error("❌ Lead data empty or invalid for:", leadgenId);

@@ -9,12 +9,12 @@ import AdminRoute from "./routes/admin.routes";
 import messageRoutes from "./routes/message.routes";
 import debugRoute from "./routes/debug.route";
 import activityRoutes from "./routes/activity.routes";
-
+import followup from "./routes/followup.routes"
 dotenv.config();
 connectDB();
 
 const app = express();
-
+app.use("/public", express.static("public"));
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -31,6 +31,6 @@ app.use("/api/admin", AdminRoute);
 app.use("/api/messages", messageRoutes);
 app.use("/api/debug", debugRoute);
 app.use("/api/activity", activityRoutes);
-
+app.use("/api/followup",followup)
 const PORT = process.env.PORT || 4520;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
