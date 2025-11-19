@@ -75,3 +75,14 @@ export const sendWhatsAppUnified = async (
     }
   }
 };
+export const sendWhatsApp = async (to: string, message: string): Promise<boolean> => {
+  try {
+    // TODO: replace with real provider logic (Twilio / Meta / etc.)
+    console.log("[whatsappService] sendWhatsApp ->", to, message);
+    // pretend success
+    return true;
+  } catch (err) {
+    console.error("[whatsappService] sendWhatsApp error:", err);
+    return false;
+  }
+};

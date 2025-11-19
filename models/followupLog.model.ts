@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document,Types } from "mongoose";
 
 export interface IFollowUpLog extends Document {
   leadId: string;
@@ -10,7 +10,7 @@ export interface IFollowUpLog extends Document {
 
 const FollowUpLogSchema = new Schema<IFollowUpLog>(
   {
-    leadId: { type: Schema.Types.ObjectId, ref: "Lead", required: true },
+    leadId: { type: Schema.Types.ObjectId as any, ref: "Lead", required: true },
     message: { type: String, required: true },
     type: { type: String, enum: ["email", "whatsapp", "both"], required: true },
     date: { type: Date, default: Date.now },

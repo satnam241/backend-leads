@@ -2,8 +2,7 @@
 import { Request, Response } from "express";
 import Lead from "../models/lead.model";
 import { sendEmail } from "../services/emailService";
-import { sendWhatsApp } from "../services/whatsappService";
-
+import { sendWhatsAppUnified as sendWhatsApp } from "../services/whatsappService";
 export const sendMessageController = async (req: Request, res: Response) => {
   const { leadId } = req.params;
   const { messageType, message, adminEmail } = req.body;

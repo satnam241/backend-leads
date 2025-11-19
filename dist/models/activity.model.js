@@ -34,10 +34,10 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const AdminSchema = new mongoose_1.Schema({
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: false },
-    password: { type: String, required: true },
+const ActivitySchema = new mongoose_1.Schema({
+    userId: { type: String, required: true },
+    adminId: { type: String, default: "admin" },
+    text: { type: String, required: true },
 }, { timestamps: true });
-exports.default = mongoose_1.default.model("Admin", AdminSchema);
-//# sourceMappingURL=admin.model.js.map
+exports.default = mongoose_1.default.model("Activity", ActivitySchema);
+//# sourceMappingURL=activity.model.js.map

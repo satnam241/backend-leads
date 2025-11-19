@@ -7,7 +7,7 @@ import Admin from "../models/admin.model";
 import Lead from "../models/lead.model";
 import fs from "fs";
 import { parse } from "csv-parse";
-import ImportLeadsModal from "./ImportLeadsModal";
+
 import * as XLSX from "xlsx";
 
 

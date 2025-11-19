@@ -1,17 +1,15 @@
 "use strict";
-// // controllers/leadController.ts
-// import { Request, Response } from "express";
-// import Lead from "../models/lead.model";
-// import { sendMessageService } from "../services/messageService";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createLeadController = void 0;
+exports.getLeadsController = exports.deleteLeadController = exports.updateLeadController = exports.createLeadController = void 0;
 const lead_model_1 = __importDefault(require("../models/lead.model"));
 const messageService_1 = require("../services/messageService");
 /**
- * Extract and normalize fields dynamically from FB or custom form data
+ * -----------------------------------------
+ * 🔍 Utility: Extract fields from any rawData
+ * -----------------------------------------
  */
 function extractFields(rawData) {
     const extracted = {
@@ -24,10 +22,10 @@ function extractFields(rawData) {
     };
     if (!rawData)
         return extracted;
-    // ✅ Handle Facebook Lead Ads `field_data` format
+    // Handle FB field_data format
     if (Array.isArray(rawData.field_data)) {
         for (const f of rawData.field_data) {
-            const key = (f.name || "").toString().toLowerCase();
+            const key = (f.name || "").toLowerCase();
             const val = Array.isArray(f.values) && f.values.length ? f.values[0] : undefined;
             if (!val)
                 continue;
@@ -37,61 +35,67 @@ function extractFields(rawData) {
                 extracted.email = extracted.email || val;
             else if (key.includes("phone") || key.includes("mobile"))
                 extracted.phone = extracted.phone || val;
-            else if (key.includes("message") || key.includes("msg"))
+            else if (key.includes("message"))
                 extracted.message = extracted.message || val;
             else
                 extracted.extraFields[key] = val;
         }
     }
-    // ✅ Handle other possible keys (non-FB)
+    // Handle custom JSON format
     for (const [key, val] of Object.entries(rawData)) {
-        const lowerKey = key.toLowerCase();
+        const k = key.toLowerCase();
         if (!val)
             continue;
-        if (lowerKey.includes("name"))
-            extracted.fullName = val;
-        else if (lowerKey.includes("email"))
-            extracted.email = val;
-        else if (lowerKey.includes("phone") || lowerKey.includes("mobile"))
-            extracted.phone = val;
-        else if (lowerKey.includes("message"))
-            extracted.message = val;
-        else if (lowerKey === "source")
+        if (k.includes("name"))
+            extracted.fullName = extracted.fullName || val;
+        else if (k.includes("email"))
+            extracted.email = extracted.email || val;
+        else if (k.includes("phone") || k.includes("mobile"))
+            extracted.phone = extracted.phone || val;
+        else if (k.includes("message"))
+            extracted.message = extracted.message || val;
+        else if (k === "source")
             extracted.source = val;
         else
-            extracted.extraFields[lowerKey] = val;
+            extracted.extraFields[k] = val;
     }
     return extracted;
 }
+/**
+ * -----------------------------------------
+ * 🟢 Create Lead (FB + Manual + Import)
+ * -----------------------------------------
+ */
 const createLeadController = async (req, res) => {
     try {
         const { fullName: bodyFullName, email: bodyEmail, phone: bodyPhone, phoneVerified, whenAreYouPlanningToPurchase, whatIsYourBudget, source: bodySource, rawData, } = req.body;
-        const extracted = extractFields(rawData);
-        const fullName = bodyFullName || extracted.fullName || null;
+        const extracted = extractFields(rawData || {});
+        const fullName = bodyFullName || extracted.fullName || "Unknown User";
         const email = bodyEmail || extracted.email || null;
         const phone = bodyPhone || extracted.phone || null;
         const message = extracted.message || rawData?.message || null;
-        const source = bodySource || extracted.source || "Unknown";
+        const source = bodySource || extracted.source || "import";
         if (!fullName && !email && !phone) {
-            console.warn("❌ Missing required fields in incoming lead", req.body);
             return res.status(400).json({
-                error: "Lead must include at least one of these: fullName, email, or phone.",
+                error: "Lead must include at least one of: fullName, email, or phone.",
             });
         }
+        // Check duplicate entry
         const existingLead = await lead_model_1.default.findOne({
             $or: [{ email }, { phone }],
         });
         let lead;
         if (existingLead) {
+            // Update existing lead
             lead = await lead_model_1.default.findByIdAndUpdate(existingLead._id, {
                 $set: {
                     fullName,
                     email,
                     phone,
                     phoneVerified: phoneVerified ?? existingLead.phoneVerified,
-                    whenAreYouPlanningToPurchase: whenAreYouPlanningToPurchase || existingLead.whenAreYouPlanningToPurchase,
-                    whatIsYourBudget: whatIsYourBudget || existingLead.whatIsYourBudget,
-                    message: message || existingLead.message,
+                    whenAreYouPlanningToPurchase,
+                    whatIsYourBudget,
+                    message,
                     source,
                     rawData: {
                         ...existingLead.rawData,
@@ -103,44 +107,177 @@ const createLeadController = async (req, res) => {
                     },
                 },
             }, { new: true });
-            console.log("🔁 Updated existing lead:", lead?._id?.toString());
+            if (lead && lead._id) {
+                console.log("Updated:", String(lead._id));
+            }
         }
         else {
+            // Create new lead
             lead = new lead_model_1.default({
-                fullName: fullName || "Unknown User",
-                email: email || null,
-                phone: phone || null,
+                fullName,
+                email,
+                phone,
                 phoneVerified: phoneVerified || false,
-                whenAreYouPlanningToPurchase: whenAreYouPlanningToPurchase || null,
-                whatIsYourBudget: whatIsYourBudget || null,
+                whenAreYouPlanningToPurchase,
+                whatIsYourBudget,
                 message,
                 source,
-                rawData: { ...rawData, extraFields: extracted.extraFields },
+                rawData: {
+                    ...rawData,
+                    extraFields: extracted.extraFields,
+                },
             });
             await lead.save();
-            console.log("✅ New lead saved:", lead?._id?.toString());
+            if (lead && lead._id) {
+                console.log("Updated:", String(lead._id));
+            }
         }
-        // ✅ Send auto message (non-blocking)
+        // Auto message send
         (async () => {
             try {
-                if (!lead?._id) {
-                    console.error("⚠️ Lead not found, cannot send message");
-                    return;
+                if (lead?._id) {
+                    await (0, messageService_1.sendMessageService)(lead._id.toString(), "both");
+                    if (lead && lead._id) {
+                        console.log("Updated:", String(lead._id));
+                    }
                 }
-                await (0, messageService_1.sendMessageService)(lead._id.toString(), "both");
-                console.log("📩 Auto message sent for", lead._id.toString());
             }
             catch (err) {
-                console.error("⚠️ Message sending failed:", err);
+                console.error("⚠️ Auto message failed:", err);
             }
         })();
-        // ✅ Return response
-        return res.status(201).json(lead);
+        res.status(201).json(lead);
     }
     catch (err) {
-        console.error("💥 Error in createLeadController:", err);
-        return res.status(500).json({ error: "Failed to create lead" });
+        console.error("💥 Error createLeadController:", err);
+        res.status(500).json({ error: "Failed to create lead" });
     }
 };
 exports.createLeadController = createLeadController;
+/**
+ * -----------------------------------------
+ * 🟡 Update Lead
+ * -----------------------------------------
+ */
+const updateLeadController = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updates = req.body;
+        const existingLead = await lead_model_1.default.findById(id);
+        if (!existingLead) {
+            return res.status(404).json({ error: "Lead not found" });
+        }
+        const updatedLead = await lead_model_1.default.findByIdAndUpdate(id, {
+            $set: {
+                ...updates,
+                rawData: updates.rawData
+                    ? {
+                        ...existingLead.rawData,
+                        ...updates.rawData,
+                        extraFields: {
+                            ...existingLead.rawData?.extraFields,
+                            ...updates.rawData?.extraFields,
+                        },
+                    }
+                    : existingLead.rawData,
+            },
+        }, { new: true });
+        if (updatedLead && updatedLead._id) {
+            console.log("✅ Lead updated:", String(updatedLead._id));
+        }
+        else {
+            console.log("✅ Lead updated: (no id available)");
+        }
+        res.status(200).json(updatedLead);
+    }
+    catch (err) {
+        console.error("💥 Error updateLeadController:", err);
+        res.status(500).json({ error: "Failed to update lead" });
+    }
+};
+exports.updateLeadController = updateLeadController;
+/**
+ * -----------------------------------------
+ * 🔴 Delete Lead
+ * -----------------------------------------
+ */
+const deleteLeadController = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const lead = await lead_model_1.default.findByIdAndDelete(id);
+        if (!lead) {
+            return res.status(404).json({ error: "Lead not found" });
+        }
+        if (lead && lead._id) {
+            console.log("Updated:", String(lead._id));
+        }
+        res.status(200).json({ message: "Lead deleted successfully" });
+    }
+    catch (err) {
+        console.error("💥 Error deleteLeadController:", err);
+        res.status(500).json({ error: "Failed to delete lead" });
+    }
+};
+exports.deleteLeadController = deleteLeadController;
+const getLeadsController = async (req, res) => {
+    try {
+        const { id, email, phone, source, followupFilter } = req.query;
+        // 1) Fetch Single Lead by ID
+        if (id) {
+            const lead = await lead_model_1.default.findById(id).lean();
+            if (!lead)
+                return res.status(404).json({ error: "Lead not found" });
+            return res.status(200).json(lead);
+        }
+        // 2) Base Filters
+        const filters = {};
+        if (email && email !== "null" && email !== "")
+            filters.email = String(email).trim().toLowerCase();
+        if (phone && phone !== "null" && phone !== "")
+            filters.phone = String(phone).trim();
+        if (source && source !== "null" && source !== "")
+            filters.source = source;
+        // base filters already written above...
+        // FOLLOW-UP FILTERS
+        if (followupFilter) {
+            const now = new Date();
+            if (followupFilter === "today") {
+                const start = new Date();
+                start.setHours(0, 0, 0, 0);
+                const end = new Date();
+                end.setHours(23, 59, 59, 999);
+                filters["followUp.date"] = { $gte: start, $lte: end };
+                filters["followUp.active"] = true;
+            }
+            if (followupFilter === "missed") {
+                filters["followUp.date"] = { $lt: now }; // already passed
+                filters["followUp.active"] = true;
+            }
+            if (followupFilter === "week") {
+                const start = new Date();
+                start.setDate(start.getDate() - start.getDay()); // start of week (Sunday)
+                const end = new Date();
+                end.setDate(end.getDate() + (6 - end.getDay())); // end of week (Saturday)
+                end.setHours(23, 59, 59, 999);
+                filters["followUp.date"] = { $gte: start, $lte: end };
+                filters["followUp.active"] = true;
+            }
+            if (followupFilter === "next24") {
+                const next24 = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+                filters["followUp.date"] = { $gte: now, $lte: next24 };
+                filters["followUp.active"] = true;
+            }
+        }
+        // 4) Fetch Leads
+        const leads = await lead_model_1.default.find(filters)
+            .sort({ createdAt: -1 })
+            .lean();
+        return res.status(200).json(leads);
+    }
+    catch (err) {
+        console.error("💥 Error in getLeadsController:", err);
+        return res.status(500).json({ error: "Failed to fetch leads" });
+    }
+};
+exports.getLeadsController = getLeadsController;
 //# sourceMappingURL=leadController.js.map

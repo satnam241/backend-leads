@@ -34,10 +34,12 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const AdminSchema = new mongoose_1.Schema({
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: false },
-    password: { type: String, required: true },
+const FollowUpLogSchema = new mongoose_1.Schema({
+    leadId: { type: mongoose_1.Schema.Types.ObjectId, ref: "Lead", required: true },
+    message: { type: String, required: true },
+    type: { type: String, enum: ["email", "whatsapp", "both"], required: true },
+    date: { type: Date, default: Date.now },
+    status: { type: String, enum: ["sent", "failed"], default: "sent" }
 }, { timestamps: true });
-exports.default = mongoose_1.default.model("Admin", AdminSchema);
-//# sourceMappingURL=admin.model.js.map
+exports.default = mongoose_1.default.model("FollowUpLog", FollowUpLogSchema);
+//# sourceMappingURL=followupLog.model.js.map

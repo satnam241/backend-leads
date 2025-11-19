@@ -117,9 +117,10 @@ export const createLeadController = async (req: Request, res: Response) => {
         },
         { new: true }
       );
-
-      console.log("🔁 Updated existing lead:", lead._id.toString());
-    } else {
+      if (lead && lead._id) {
+        console.log("Updated:", String(lead._id));
+      }
+     } else {
       // Create new lead
       lead = new Lead({
         fullName,
@@ -137,7 +138,9 @@ export const createLeadController = async (req: Request, res: Response) => {
       });
 
       await lead.save();
-      console.log("✅ New lead saved:", lead._id.toString());
+      if (lead && lead._id) {
+        console.log("Updated:", String(lead._id));
+      }
     }
 
     // Auto message send
@@ -145,8 +148,10 @@ export const createLeadController = async (req: Request, res: Response) => {
       try {
         if (lead?._id) {
           await sendMessageService(lead._id.toString(), "both");
-          console.log("📩 Message sent for", lead._id.toString());
-        }
+          if (lead && lead._id) {
+            console.log("Updated:", String(lead._id));
+          }
+          }
       } catch (err) {
         console.error("⚠️ Auto message failed:", err);
       }
@@ -194,8 +199,12 @@ export const updateLeadController = async (req: Request, res: Response) => {
       },
       { new: true }
     );
-
-    console.log("📝 Lead updated:", updatedLead._id.toString());
+    if (updatedLead && (updatedLead as any)._id) {
+      console.log("✅ Lead updated:", String((updatedLead as any)._id));
+    } else {
+      console.log("✅ Lead updated: (no id available)");
+    }
+    
     res.status(200).json(updatedLead);
   } catch (err) {
     console.error("💥 Error updateLeadController:", err);
@@ -218,8 +227,10 @@ export const deleteLeadController = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Lead not found" });
     }
 
-    console.log("🗑️ Lead deleted:", lead._id.toString());
-    res.status(200).json({ message: "Lead deleted successfully" });
+    if (lead && lead._id) {
+      console.log("Updated:", String(lead._id));
+    }
+     res.status(200).json({ message: "Lead deleted successfully" });
   } catch (err) {
     console.error("💥 Error deleteLeadController:", err);
     res.status(500).json({ error: "Failed to delete lead" });

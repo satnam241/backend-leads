@@ -43,7 +43,7 @@ Your Sales Team
         // WhatsApp
         if ((messageType === "whatsapp" || messageType === "both") && lead.phone) {
             try {
-                await (0, whatsappService_1.sendWhatsApp)(lead.phone, finalMessage);
+                await (0, whatsappService_1.sendWhatsAppUnified)(lead.phone, finalMessage);
                 sentTo.whatsapp = lead.phone;
             }
             catch (err) {

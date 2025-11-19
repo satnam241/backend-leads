@@ -7,7 +7,9 @@ exports.connectDB = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const connectDB = async () => {
     try {
-        const mongoURI = process.env.MONGO_URI || "mongodb://localhost:27017/LEAD-DB";
+        const mongoURI = process.env.MONGO_URI1; //||"mongodb+srv://sharesampatti_db_user:gisT4ZAeM4SJ0IDs@cluster1.fexcuo8.mongodb.net/?appName=Cluster1"
+        if (!mongoURI)
+            throw new Error("Missing MONGO_URI in env");
         await mongoose_1.default.connect(mongoURI);
         console.log("✅ MongoDB connected successfully");
     }

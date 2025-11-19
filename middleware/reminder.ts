@@ -16,24 +16,29 @@ cron.schedule("*/5 * * * *", async () => {
     });
 
     for (const lead of dueLeads) {
-      console.log(`🔔 Follow-up due → Lead: ${lead._id}`);
+
+      // 🔥 FIXED: lead._id always string
+      const leadId = String((lead as any)._id);
+
+      console.log("🔔 Follow-up due for lead:", leadId);
 
       // 2️⃣ Auto send BOTH: WhatsApp + Email + Brochure
       try {
         await sendMessageService(
-          lead._id,
+          leadId, // FIXED ✔ (was lead._id)
           "both",
           lead.followUp?.message || undefined  // custom follow-up message
         );
-        console.log(`📩 Auto follow-up sent to lead ${lead._id}`);
+        console.log(`📩 Auto follow-up sent to lead ${leadId}`);
       } catch (err) {
-        console.error(`❌ Error sending auto message to ${lead._id}:`, err);
+        console.error(`❌ Error sending auto message to ${leadId}:`, err);
       }
 
       // 3️⃣ Recurrence logic (tomorrow / 3days / weekly)
       const recurrence = lead.followUp?.recurrence;
 
       if (recurrence && recurrence !== "once") {
+
         const nextDate = (() => {
           const cur = new Date(lead.followUp!.date || now);
 
@@ -47,7 +52,8 @@ cron.schedule("*/5 * * * *", async () => {
 
         lead.followUp!.date = nextDate;
 
-        console.log(`🔁 Next follow-up scheduled for ${nextDate} (Lead: ${lead._id})`);
+        console.log(`🔁 Next follow-up scheduled for ${nextDate} (Lead: ${leadId})`);
+
       } else {
         // If once or no recurrence → disable future follow-ups
         lead.followUp = {
@@ -58,7 +64,7 @@ cron.schedule("*/5 * * * *", async () => {
           message: lead.followUp?.message || null
         };
 
-        console.log(`🛑 Follow-up disabled for Lead: ${lead._id}`);
+        console.log(`🛑 Follow-up disabled for Lead: ${leadId}`);
       }
 
       // 4️⃣ Save updated lead

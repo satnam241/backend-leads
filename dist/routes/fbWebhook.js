@@ -89,117 +89,148 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // });
 // export default router;
 const express_1 = __importDefault(require("express"));
-const node_fetch_1 = __importDefault(require("node-fetch"));
-const dotenv_1 = __importDefault(require("dotenv"));
-const lead_model_1 = __importDefault(require("../models/lead.model")); // 🧩 Mongoose model for leads
+const lead_model_1 = __importDefault(require("../models/lead.model"));
 const phone_1 = require("../services/phone");
-dotenv_1.default.config();
+const fetchWithRetry_1 = __importDefault(require("../services/fetchWithRetry"));
+const dotenv_1 = __importDefault(require("dotenv"));
 const router = express_1.default.Router();
-/**
- * ✅ Facebook Webhook Verification Route
- * Called once when you connect the webhook URL in FB App dashboard
- */
-router.get("/", (req, res) => {
+dotenv_1.default.config();
+// 🔹 Environment Variables
+const FB_VERSION = process.env.FB_GRAPH_VERSION || "v20.0";
+const PAGE_TOKEN = process.env.FB_PAGE_ACCESS_TOKEN;
+const VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
+// 🔹 Safety checks
+if (!PAGE_TOKEN)
+    console.log("⚠️ Missing FB_PAGE_ACCESS_TOKEN in .env");
+if (!VERIFY_TOKEN)
+    console.log("⚠️ Missing FB_VERIFY_TOKEN in .env");
+router.get("/facebook", (req, res) => {
     try {
         const mode = req.query["hub.mode"];
         const token = req.query["hub.verify_token"];
         const challenge = req.query["hub.challenge"];
-        if (mode === "subscribe" && token === process.env.FB_VERIFY_TOKEN) {
-            console.log("✅ Facebook Webhook verified successfully!");
+        // 🧠 Debug log to always see incoming params
+        console.log("📩 Webhook verification attempt:", { mode, token, challenge });
+        // ✅ Case 1 — Facebook verification request
+        if (mode === "subscribe" && token === VERIFY_TOKEN) {
+            console.log("✅ Facebook webhook verified successfully!");
             return res.status(200).send(challenge);
         }
-        else {
-            console.warn("❌ Webhook verification failed — invalid token.");
-            return res.sendStatus(403);
+        // ⚠️ Case 2 — Missing params (like when Postman/Render just pings the route)
+        if (!mode && !token && !challenge) {
+            return res
+                .status(200)
+                .send("✅ Facebook Webhook endpoint is live. Please verify using hub params.");
         }
+        // ❌ Case 3 — Invalid verify token
+        console.warn("❌ Webhook verification failed (invalid verify token)");
+        return res
+            .status(403)
+            .send("❌ Invalid verify token or missing params. Check your .env VERIFY_TOKEN.");
     }
-    catch (error) {
-        console.error("❌ Verification error:", error);
-        return res.sendStatus(500);
+    catch (err) {
+        console.error("❌ Webhook verification error:", err);
+        return res.status(500).send("Internal server error during verification");
     }
 });
 /**
- * ✅ Facebook Lead Webhook Receiver
- * This route automatically receives real-time leads from Facebook Lead Forms
+ * ===========================================================
+ * ✅ STEP 2 — RECEIVE WEBHOOK EVENTS (POST)
+ * ===========================================================
+ * Facebook sends POST requests when a new lead is generated.
+ * The payload contains leadgen_id, form_id, and page_id.
  */
-router.post("/", async (req, res) => {
+router.post("/facebook", async (req, res) => {
     try {
-        const entries = req.body.entry || [];
-        // 🟢 Facebook expects quick ACK (200 OK) to prevent retry
+        // Always respond immediately to prevent retries
         res.sendStatus(200);
+        const entries = req.body?.entry ?? [];
+        if (!entries.length) {
+            console.warn("⚠️ No 'entry' data in webhook payload");
+            return;
+        }
         for (const entry of entries) {
-            for (const change of entry.changes || []) {
-                if (change.field !== "leadgen")
+            const changes = entry?.changes || [];
+            for (const change of changes) {
+                if (change?.field !== "leadgen")
                     continue;
-                const leadgenId = change.value.leadgen_id;
-                // 🔗 Fetch full lead data from Facebook Graph API
-                const url = `https://graph.facebook.com/v23.0/${leadgenId}?access_token=${process.env.FB_PAGE_ACCESS_TOKEN}&fields=field_data,created_time,ad_id,form_id,ad_name,adset_name,campaign_name,platform`;
+                const { leadgen_id: leadgenId, form_id: formId, page_id: pageId } = change.value || {};
+                if (!leadgenId) {
+                    console.warn("⚠️ leadgen_id missing — skipping this event.");
+                    continue;
+                }
+                console.log("📥 Incoming lead event:", { leadgenId, formId, pageId });
+                // 🧠 Prevent duplicate lead saves
+                const existing = await lead_model_1.default.findOne({ "rawData.id": leadgenId });
+                if (existing) {
+                    console.log("↩️ Duplicate lead ignored:", leadgenId);
+                    continue;
+                }
+                // 🧠 Fetch full lead data from Facebook Graph API
+                const url = `https://graph.facebook.com/${FB_VERSION}/${leadgenId}?access_token=${PAGE_TOKEN}`;
                 let leadData;
                 try {
-                    const response = await (0, node_fetch_1.default)(url);
-                    if (!response.ok) {
-                        const txt = await response.text();
-                        console.error("⚠️ FB fetch failed:", response.status, txt);
-                        continue;
-                    }
-                    leadData = await response.json();
+                    leadData = await (0, fetchWithRetry_1.default)(url, 3, 800);
+                    console.log("✅ Lead data fetched:", leadData);
                 }
                 catch (err) {
-                    console.error("⚠️ FB fetch network error:", err);
+                    console.error(`❌ Fetch failed for lead ${leadgenId}:`, err.message);
                     continue;
                 }
-                // 🧩 Convert FB field_data array → key:value object
-                const fields = {};
-                for (const f of leadData.field_data || []) {
-                    fields[f.name] = f.values?.[0] ?? "";
+                if (!leadData?.field_data) {
+                    console.error("❌ Lead data empty or invalid for:", leadgenId);
+                    continue;
                 }
-                // ✅ Extract important info (fallbacks included)
-                const fullName = fields.full_name || fields.name || "Unknown User";
+                // 🧩 Transform field_data → key:value object
+                const fields = {};
+                for (const f of leadData.field_data) {
+                    const key = (f.name || "").trim().replace(/[^\w]/g, "_").toLowerCase();
+                    fields[key] = f.values?.[0] ?? "";
+                }
+                // 📧 & 📞 Extract key data
                 const email = fields.email || null;
                 const rawPhone = fields.phone_number || fields.phone || null;
-                const phone = (0, phone_1.normalizePhone)(rawPhone);
-                const phoneVerified = fields.phone_number_verified === "true" ? true : false;
-                // 🎯 Check if lead already exists (deduplication)
-                let existing = null;
+                const phone = rawPhone ? (0, phone_1.normalizePhone)(rawPhone) : null;
+                // 🧠 Deduplicate based on phone/email
+                let existingLead = null;
                 if (phone)
-                    existing = await lead_model_1.default.findOne({ phone });
-                if (!existing && email)
-                    existing = await lead_model_1.default.findOne({ email });
-                if (existing) {
-                    // 🔁 Update existing lead with missing or new info
-                    if (!existing.phone && phone)
-                        existing.phone = phone;
-                    if (!existing.email && email)
-                        existing.email = email;
-                    if (phoneVerified)
-                        existing.phoneVerified = true;
-                    // Update extra fields dynamically
-                    existing.extraFields = {
-                        ...existing.extraFields,
-                        ...fields,
-                    };
-                    existing.rawData = leadData;
-                    await existing.save();
-                    console.log("📩 Updated existing lead:", String(existing._id));
+                    existingLead = await lead_model_1.default.findOne({ phone });
+                if (!existingLead && email)
+                    existingLead = await lead_model_1.default.findOne({ email });
+                if (existingLead) {
+                    // ♻️ Update existing record
+                    existingLead.extraFields = { ...existingLead.extraFields, ...fields };
+                    existingLead.rawData = leadData;
+                    existingLead.source = "facebook";
+                    existingLead.formId = formId || existingLead.formId;
+                    if (!existingLead.phone && phone)
+                        existingLead.phone = phone;
+                    if (!existingLead.email && email)
+                        existingLead.email = email;
+                    await existingLead.save();
+                    console.log("♻️ Updated existing lead:", existingLead._id);
                 }
                 else {
-                    // 🆕 Save new lead in DB
-                    await lead_model_1.default.create({
-                        fullName,
+                    // 🆕 Create new record
+                    const newLead = await lead_model_1.default.create({
+                        fullName: fields.full_name || fields.name || "Unknown",
                         email,
                         phone,
-                        phoneVerified,
+                        phoneVerified: fields.phone_number_verified === "true",
                         source: "facebook",
-                        extraFields: fields, // 🧩 Save all dynamic form fields
-                        rawData: leadData, // Raw FB payload for reference
+                        formId,
+                        extraFields: fields,
+                        rawData: leadData,
+                        status: "new",
+                        receivedAt: new Date(),
                     });
-                    console.log("🆕 New Facebook lead saved:", email || phone);
+                    console.log("🆕 New Facebook lead saved:", newLead._id);
                 }
             }
         }
     }
-    catch (err) {
-        console.error("❌ FB webhook top-level error:", err);
+    catch (error) {
+        console.error("❌ Facebook webhook processing error:", error.message || error);
     }
 });
 exports.default = router;
