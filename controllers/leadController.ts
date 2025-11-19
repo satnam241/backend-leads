@@ -225,19 +225,18 @@ export const deleteLeadController = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to delete lead" });
   }
 };
-
-
- export const getLeadsController = async (req: Request, res: Response) => {
+export const getLeadsController = async (req: Request, res: Response) => {
   try {
-    const { id, email, phone, source } = req.query;
+    const { id, email, phone, source, followupFilter } = req.query;
 
-    // Single lead by ID
+    // 1) Fetch Single Lead by ID
     if (id) {
       const lead = await Lead.findById(id).lean();
       if (!lead) return res.status(404).json({ error: "Lead not found" });
       return res.status(200).json(lead);
     }
 
+    // 2) Base Filters
     const filters: any = {};
 
     if (email && email !== "null" && email !== "")
@@ -249,6 +248,52 @@ export const deleteLeadController = async (req: Request, res: Response) => {
     if (source && source !== "null" && source !== "")
       filters.source = source;
 
+      
+      // base filters already written above...
+      
+      // FOLLOW-UP FILTERS
+      if (followupFilter) {
+        const now = new Date();
+      
+        if (followupFilter === "today") {
+          const start = new Date();
+          start.setHours(0, 0, 0, 0);
+      
+          const end = new Date();
+          end.setHours(23, 59, 59, 999);
+      
+          filters["followUp.date"] = { $gte: start, $lte: end };
+          filters["followUp.active"] = true;
+        }
+      
+        if (followupFilter === "missed") {
+          filters["followUp.date"] = { $lt: now }; // already passed
+          filters["followUp.active"] = true;
+        }
+      
+        if (followupFilter === "week") {
+          const start = new Date();
+          start.setDate(start.getDate() - start.getDay()); // start of week (Sunday)
+      
+          const end = new Date();
+          end.setDate(end.getDate() + (6 - end.getDay())); // end of week (Saturday)
+          end.setHours(23, 59, 59, 999);
+      
+          filters["followUp.date"] = { $gte: start, $lte: end };
+          filters["followUp.active"] = true;
+        }
+      
+        if (followupFilter === "next24") {
+          const next24 = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      
+          filters["followUp.date"] = { $gte: now, $lte: next24 };
+          filters["followUp.active"] = true;
+        }
+      }
+      
+    
+
+    // 4) Fetch Leads
     const leads = await Lead.find(filters)
       .sort({ createdAt: -1 })
       .lean();
