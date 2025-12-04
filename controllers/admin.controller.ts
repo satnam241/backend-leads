@@ -11,6 +11,54 @@ import { parse } from "csv-parse";
 import * as XLSX from "xlsx";
 
 
+const getEmail = (row: any) => {
+  const possibleKeys = [
+    "email",
+    "Email",
+    "EMAIL",
+    "email_address",
+    "Email Address",
+    "E-mail",
+    "e-mail",
+    "Mail",
+    "mail",
+    "contact_email",
+    "Contact Email",
+  ];
+
+  for (const key of possibleKeys) {
+    if (row[key] && row[key] !== "null" && row[key] !== "") {
+      return String(row[key]).trim();
+    }
+  }
+
+  return null;
+};
+const getPhone = (row: any) => {
+  const possibleKeys = [
+    "phone",
+    "Phone",
+    "PHONE",
+    "mobile",
+    "Mobile",
+    "MOBILE",
+    "contact",
+    "Contact",
+    "Phone Number",
+    "Mobile Number",
+    "Contact Number",
+  ];
+
+  for (const key of possibleKeys) {
+    if (row[key] && row[key] !== "null" && row[key] !== "") {
+      return String(row[key]).trim();
+    }
+  }
+
+  return null;
+};
+
+
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 const FRONTEND_URL = process.env.FRONTEND_URL;
 
@@ -289,6 +337,7 @@ export const adminExportLeads = async (_req: Request, res: Response) => {
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
+
 export const importLeadsController = async (req: Request, res: Response) => {
   try {
     if (!req.file) {
@@ -342,38 +391,30 @@ export const importLeadsController = async (req: Request, res: Response) => {
           row["Full Name"] ||
           row["full_name"] ||
           "Unknown User",
-
-        email:
-          row.email && row.email !== "null"
-            ? row.email.toLowerCase().trim()
-            : `noemail_${Date.now()}_${Math.random()}@import.com`,
-
-        phone:
-          row.phone ||
-          row.mobile ||
-          row["Phone Number"] ||
-          row["Mobile Number"] ||
-          null,
-
+      
+        email: getEmail(row),   // ⭐ FIXED
+        phone: getPhone(row),   // ⭐ FIXED
+      
         message: row.message || row.Message || null,
+      
         whenAreYouPlanningToPurchase:
           row.whenAreYouPlanningToPurchase ||
           row.PurchaseTime ||
           null,
-
+      
         whatIsYourBudget:
           row.whatIsYourBudget ||
           row.Budget ||
           null,
-
+      
         source: "import",
-
-        // ⭐ Save original cleaned row
+      
+        extraFields: row,   // All fields stored
         rawData: row,
-        extraFields: row,
-
+      
         receivedAt: new Date(),
       });
+       
     }
 
     return res.json({

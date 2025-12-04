@@ -5,6 +5,8 @@ import axios from "axios";
 const useMeta = process.env.WHATSAPP_CLOUD_API === "true";
 
 let twilioClient: Twilio.Twilio | null = null;
+
+// Initialize Twilio only if NOT using Meta
 if (!useMeta) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID!;
   const authToken = process.env.TWILIO_AUTH_TOKEN!;
@@ -12,48 +14,56 @@ if (!useMeta) {
 }
 
 /**
- * sendWhatsAppUnified:
- * - If mediaUrl provided, sends media (via Twilio or Meta).
- * - If only text provided, sends text.
- *
- * toPhone: number (can be local without +) — function normalizes with +91 fallback.
+ * Unified WhatsApp Sender
+ * Supports:
+ * - Twilio Text / Media / Template
+ * - Meta Cloud API Text / Media
  */
 export const sendWhatsAppUnified = async (
   toPhone: string,
   text?: string,
   mediaUrl?: string
 ) => {
-  // normalize phone, naive: if missing + assume +91 — adjust if you need global support
-  let norm = toPhone.replace(/\D/g, "");
-  if (!norm.startsWith("91") && !norm.startsWith("1") && !toPhone.startsWith("+")) {
-    // assume India +91 (change if needed)
-    norm = "91" + norm;
-  }
+  try {
+    // normalize
+    let norm = toPhone.replace(/\D/g, "");
+    if (!norm.startsWith("91")) norm = "91" + norm;
+    const toWhats = `whatsapp:+${norm}`;
 
-  const toWhats = `whatsapp:+${norm}`;
+    // ------------------------------------
+    // 🟢 Twilio Route
+    // ------------------------------------
+    if (!useMeta && twilioClient) {
+      console.log("📤 Sending WhatsApp via Twilio →", toWhats);
 
-  if (!useMeta && twilioClient) {
-    // Twilio: can send text or media (mediaUrl array)
-    const msg: any = { from: process.env.TWILIO_WHATSAPP_FROM!, to: toWhats };
-    if (mediaUrl) {
-      msg.body = text || ""; // include optional caption
-      msg.mediaUrl = [mediaUrl];
-    } else {
-      msg.body = text || "";
+      const msg: any = {
+        from: process.env.TWILIO_WHATSAPP_FROM!,
+        to: toWhats,
+        body: text || "",
+      };
+
+      if (mediaUrl) {
+        msg.mediaUrl = [mediaUrl];
+      }
+
+      const res = await twilioClient.messages.create(msg);
+      console.log("✅ Twilio WhatsApp Sent:", res.sid);
+      return res;
     }
 
-    const res = await twilioClient.messages.create(msg);
-    return res;
-  } else {
-    // Meta Cloud API (must have phone number ID in URL)
-    const url = process.env.WHATSAPP_API_URL!; // e.g. https://graph.facebook.com/v16.0/<PHONE_NUMBER_ID>/messages
+    // ------------------------------------
+    // 🟣 Meta Cloud API Route
+    // ------------------------------------
+    console.log("📤 Sending WhatsApp via Meta →", norm);
+
+    const url = process.env.WHATSAPP_API_URL!;
     const token = process.env.WHATSAPP_TOKEN!;
+
     if (mediaUrl) {
-      // send media message with caption
       const body = {
         messaging_product: "whatsapp",
-        to: norm, // meta expects without plus
-        type: "image", // you can use "document" too if supported
+        to: norm,
+        type: "image",
         image: { link: mediaUrl, caption: text || "" },
       };
       const r = await axios.post(url, body, {
@@ -61,7 +71,6 @@ export const sendWhatsAppUnified = async (
       });
       return r.data;
     } else {
-      // text only
       const body = {
         messaging_product: "whatsapp",
         to: norm,
@@ -73,16 +82,8 @@ export const sendWhatsAppUnified = async (
       });
       return r.data;
     }
-  }
-};
-export const sendWhatsApp = async (to: string, message: string): Promise<boolean> => {
-  try {
-    // TODO: replace with real provider logic (Twilio / Meta / etc.)
-    console.log("[whatsappService] sendWhatsApp ->", to, message);
-    // pretend success
-    return true;
-  } catch (err) {
-    console.error("[whatsappService] sendWhatsApp error:", err);
+  } catch (err: any) {
+    console.error("❌ WhatsApp Error:", err.response?.data || err.message || err);
     return false;
   }
 };

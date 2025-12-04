@@ -2,12 +2,18 @@
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 587,          // MUST USE THIS ON RENDER
+  secure: false,      // Only port 587 allowed
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
+  tls: {
+    rejectUnauthorized: false,
+  }
 });
+
 
 export const sendEmail = async (
   to: string,
