@@ -53,7 +53,7 @@ Sales Team
             contentType: "application/pdf",
           },
         ]
-      );
+      );      
       sentTo.email = emailTo;
       console.log(`📧 Brochure email sent to ${emailTo}`);
     } else {
@@ -111,11 +111,12 @@ try {
     leadId,
     message: message || finalMessage.trim(),
     type: messageType,
-    status: "sent"
+    status: "sent",
   });
 } catch (logErr) {
   console.error("❌ Failed to log follow-up:", logErr);
 }
+
 await FollowUpLog.create({
   leadId,
   message: message || finalMessage.trim(),
