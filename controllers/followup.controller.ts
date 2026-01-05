@@ -13,6 +13,7 @@ const computeNextDate = (recurrence: string, fromDate?: Date): Date => {
   }
   return d;
 };
+
 export const scheduleFollowUp = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -22,18 +23,17 @@ export const scheduleFollowUp = async (req: Request, res: Response) => {
     if (!lead)
       return res.status(404).json({ success: false, error: "Lead not found" });
 
-    let followDate: string | null = null;
+    let followDate: Date | null = null;
 
     if (date) {
-      // Frontend sends YYYY-MM-DD
-      followDate = date;
+      // Frontend sends YYYY-MM-DD → convert to Date
+      followDate = new Date(date);
     } else if (recurrence) {
-      const nextDate = computeNextDate(recurrence);
-      followDate = nextDate.toISOString().slice(0, 10); // ONLY date
+      followDate = computeNextDate(recurrence);
     }
 
     lead.followUp = {
-      date: followDate,               // save plain date string
+      date: followDate,                 // ✅ Date type
       recurrence: recurrence || "once",
       message: message || null,
       whatsappOptIn: !!whatsappOptIn,
