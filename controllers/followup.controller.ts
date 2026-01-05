@@ -13,29 +13,35 @@ const computeNextDate = (recurrence: string, fromDate?: Date): Date => {
   }
   return d;
 };
-
-// Create / Update follow-up for a lead
 export const scheduleFollowUp = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { recurrence, date, message, whatsappOptIn, active } = req.body;
 
     const lead = await Lead.findById(id);
-    if (!lead) return res.status(404).json({ success: false, error: "Lead not found" });
+    if (!lead)
+      return res.status(404).json({ success: false, error: "Lead not found" });
 
-    let followDate: Date | null = null;
-    if (date) followDate = new Date(date);
-    else if (recurrence) followDate = computeNextDate(recurrence);
+    let followDate: string | null = null;
+
+    if (date) {
+      // Frontend sends YYYY-MM-DD
+      followDate = date;
+    } else if (recurrence) {
+      const nextDate = computeNextDate(recurrence);
+      followDate = nextDate.toISOString().slice(0, 10); // ONLY date
+    }
 
     lead.followUp = {
-      date: followDate,
-      recurrence: recurrence || (date ? "once" : null),
+      date: followDate,               // save plain date string
+      recurrence: recurrence || "once",
       message: message || null,
       whatsappOptIn: !!whatsappOptIn,
-      active: active === undefined ? true : !!active
+      active: active ?? true,
     };
 
     await lead.save();
+
     return res.json({ success: true, lead });
   } catch (err) {
     console.error("Schedule follow-up error:", err);
@@ -70,23 +76,21 @@ export const listFollowUps = async (_req: Request, res: Response) => {
   }
 };
 
-
 export const getUpcomingFollowUps = async (req: Request, res: Response) => {
   try {
+    const today = new Date().toISOString().slice(0, 10);
+
     const upcoming = await Lead.find({
       "followUp.active": true,
-      "followUp.date": { $gte: new Date() } // only future events
+      "followUp.date": { $gte: today } // string comparison works on YYYY-MM-DD
     })
       .select("fullName phone followUp")
       .sort({ "followUp.date": 1 });
 
-    return res.json({
-      success: true,
-      upcoming
-    });
+    return res.json({ success: true, upcoming });
 
   } catch (err) {
-    console.error("❌ Calendar fetch error:", err);
+    console.error("Calendar fetch error:", err);
     return res.status(500).json({ success: false, error: "Server error" });
   }
 };

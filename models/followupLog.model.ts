@@ -4,7 +4,7 @@ export interface IFollowUpLog extends Document {
   leadId: string;
   message: string;
   type: "email" | "whatsapp" | "both";
-  date: Date;
+  date: String;
   status: "sent" | "failed";
 }
 
@@ -13,7 +13,7 @@ const FollowUpLogSchema = new Schema<IFollowUpLog>(
     leadId: { type: Schema.Types.ObjectId as any, ref: "Lead", required: true },
     message: { type: String, required: true },
     type: { type: String, enum: ["email", "whatsapp", "both"], required: true },
-    date: { type: Date, default: Date.now },
+    date: { type: Date },
     status: { type: String, enum: ["sent", "failed"], default: "sent" }
   },
   { timestamps: true }
