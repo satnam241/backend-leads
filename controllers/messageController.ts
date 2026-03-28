@@ -1,58 +1,31 @@
 // controllers/messageController.ts
+
 import { Request, Response } from "express";
-import Lead from "../models/lead.model";
-import { sendEmail } from "../services/emailService";
-import { sendWhatsAppUnified } from "../services/whatsappService";
+import { sendMessageToLead } from "../services/messageService";
 
 export const sendMessageController = async (req: Request, res: Response) => {
-  const { leadId } = req.params;
-  const { messageType, message, adminEmail } = req.body;
-
-  const sentTo: any = {};
-
   try {
-    const lead = await Lead.findById(leadId);
-    if (!lead) return res.status(404).json({ error: "Lead not found" });
+    const { leadId } = req.params;
+    const { messageType = "email", message, adminEmail } = req.body;
 
-    const defaultMessage = `
-Hi ${lead.fullName || "there"}, 👋
-
-Thank you for reaching out to us.  
-Our sales team has received your request and will get in touch with you shortly.
-
-Meanwhile, if you have any urgent queries, feel free to reply to this message.  
-We look forward to assisting you! 🚀
-
-Best Regards,  
-Your Sales Team
-`;
-
-    const finalMessage = message || defaultMessage;
-
-    // -------- EMAIL --------
-    if ((messageType === "email" || messageType === "both") && (lead.email || adminEmail)) {
-      try {
-        const emailToSend = lead.email || adminEmail;
-        await sendEmail(emailToSend, "Thank you for contacting us!", finalMessage);
-        sentTo.email = emailToSend;
-      } catch (err) {
-        console.error("Email send error:", err);
-      }
+    if (!leadId) {
+      return res.status(400).json({ error: "leadId is required" });
     }
 
-    // -------- WHATSAPP --------
-    if ((messageType === "whatsapp" || messageType === "both") && lead.phone) {
-      try {
-        await sendWhatsAppUnified(lead.phone, finalMessage);
-        sentTo.whatsapp = lead.phone;
-      } catch (err) {
-        console.error("WhatsApp error:", err);
-      }
-    }
+    const result = await sendMessageToLead({
+      leadId,
+      messageType,
+      customMessage: message,
+      adminEmail,
+    });
 
-    res.json({ success: true, sentTo, reply: finalMessage });
-  } catch (err) {
-    console.error("Controller error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    return res.status(200).json(result);
+
+  } catch (error: any) {
+    console.error("❌ Controller error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
   }
 };

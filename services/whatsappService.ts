@@ -1,12 +1,18 @@
 // services/whatsappService.ts
+
 import Twilio from "twilio";
 import axios from "axios";
 
+// ✅ Flag for Meta API
 const useMeta = process.env.WHATSAPP_CLOUD_API === "true";
+
+// ✅ Twilio config
+const TWILIO_FROM = process.env.TWILIO_WHATSAPP_NUMBER;
+
+console.log("🔥 TWILIO FROM:", TWILIO_FROM);
 
 let twilioClient: Twilio.Twilio | null = null;
 
-// Initialize Twilio only if NOT using Meta
 if (!useMeta) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID!;
   const authToken = process.env.TWILIO_AUTH_TOKEN!;
@@ -15,9 +21,6 @@ if (!useMeta) {
 
 /**
  * Unified WhatsApp Sender
- * Supports:
- * - Twilio Text / Media / Template
- * - Meta Cloud API Text / Media
  */
 export const sendWhatsAppUnified = async (
   toPhone: string,
@@ -25,19 +28,26 @@ export const sendWhatsAppUnified = async (
   mediaUrl?: string
 ) => {
   try {
-    // normalize
+    // ✅ Normalize phone
     let norm = toPhone.replace(/\D/g, "");
     if (!norm.startsWith("91")) norm = "91" + norm;
+
     const toWhats = `whatsapp:+${norm}`;
 
     // ------------------------------------
-    // 🟢 Twilio Route
+    // 🟢 TWILIO FLOW
     // ------------------------------------
     if (!useMeta && twilioClient) {
-      console.log("📤 Sending WhatsApp via Twilio →", toWhats);
+      if (!TWILIO_FROM) {
+        throw new Error("❌ TWILIO_WHATSAPP_NUMBER missing in env");
+      }
+
+      console.log("📤 Sending via Twilio");
+      console.log("FROM:", TWILIO_FROM);
+      console.log("TO:", toWhats);
 
       const msg: any = {
-        from: process.env.TWILIO_WHATSAPP_FROM!,
+        from: TWILIO_FROM, // ✅ FIXED
         to: toWhats,
         body: text || "",
       };
@@ -47,43 +57,49 @@ export const sendWhatsAppUnified = async (
       }
 
       const res = await twilioClient.messages.create(msg);
+
       console.log("✅ Twilio WhatsApp Sent:", res.sid);
       return res;
     }
 
     // ------------------------------------
-    // 🟣 Meta Cloud API Route
+    // 🟣 META CLOUD API FLOW
     // ------------------------------------
-    console.log("📤 Sending WhatsApp via Meta →", norm);
+    console.log("📤 Sending via Meta →", norm);
 
     const url = process.env.WHATSAPP_API_URL!;
     const token = process.env.WHATSAPP_TOKEN!;
 
-    if (mediaUrl) {
-      const body = {
-        messaging_product: "whatsapp",
-        to: norm,
-        type: "image",
-        image: { link: mediaUrl, caption: text || "" },
-      };
-      const r = await axios.post(url, body, {
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      });
-      return r.data;
-    } else {
-      const body = {
-        messaging_product: "whatsapp",
-        to: norm,
-        type: "text",
-        text: { body: text || "" },
-      };
-      const r = await axios.post(url, body, {
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      });
-      return r.data;
+    if (!url || !token) {
+      throw new Error("❌ Meta API config missing");
     }
+
+    const body = mediaUrl
+      ? {
+          messaging_product: "whatsapp",
+          to: norm,
+          type: "image",
+          image: { link: mediaUrl, caption: text || "" },
+        }
+      : {
+          messaging_product: "whatsapp",
+          to: norm,
+          type: "text",
+          text: { body: text || "" },
+        };
+
+    const r = await axios.post(url, body, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log("✅ Meta WhatsApp Sent");
+    return r.data;
+
   } catch (err: any) {
     console.error("❌ WhatsApp Error:", err.response?.data || err.message || err);
-    return false;
+    throw new Error("WhatsApp send failed");
   }
 };

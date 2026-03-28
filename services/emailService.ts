@@ -1,42 +1,21 @@
-// // services/emailService.ts
-// import nodemailer from "nodemailer";
-
-// const transporter = nodemailer.createTransport({
-//   host: "smtp.gmail.com",
-//   port: 587,          // MUST USE THIS ON RENDER
-//   secure: false,      // Only port 587 allowed
-//   auth: {
-//     user: process.env.EMAIL_USER,
-//     pass: process.env.EMAIL_PASS,
-//   },
-//   tls: {
-//     rejectUnauthorized: false,
-//   }
-// });
-
-
-// export const sendEmail = async (
-//   to: string,
-//   subject: string,
-//   text: string,
-//   attachments?: { filename: string; path?: string; contentType?: string }[]
-// ) => {
-//   const mailOptions: any = {
-//     from: process.env.EMAIL_USER,
-//     to,
-//     subject,
-//     text,
-//   };
-
-//   if (attachments && attachments.length) mailOptions.attachments = attachments;
-
-//   return transporter.sendMail(mailOptions);
-// };
-
 // services/emailService.ts
-import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
+import nodemailer from "nodemailer";
+import { google } from "googleapis";
+
+const OAuth2 = google.auth.OAuth2;
+
+// Create OAuth client
+const oauth2Client = new OAuth2(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  "https://developers.google.com/oauthplayground"
+);
+
+// Set refresh token
+oauth2Client.setCredentials({
+  refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+});
 
 export const sendEmail = async (
   to: string,
@@ -49,25 +28,36 @@ export const sendEmail = async (
   }>
 ) => {
   try {
-    // Convert attachments to Resend’s required format
-    const formattedAttachments =
-      attachments?.map(att => ({
-        filename: att.filename,
-        path: att.path,
-      })) || [];
+    // Get access token dynamically
+    const accessToken = await oauth2Client.getAccessToken();
 
-    const response = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        type: "OAuth2",
+        user: process.env.GOOGLE_USER,
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
+        accessToken: accessToken.token!,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.GOOGLE_USER,
       to,
       subject,
       html,
-      attachments: formattedAttachments, // Resend supports attachments!
-    });
+      attachments,
+    };
 
-    console.log("📧 Email sent:", response);
-    return response;
+    const result = await transporter.sendMail(mailOptions);
+
+    console.log("✅ Email sent:", result);
+    return result;
+
   } catch (error) {
-    console.error("❌ Resend Email Error:", error);
+    console.error("❌ Email error:", error);
     throw error;
   }
 };
