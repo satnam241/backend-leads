@@ -1,96 +1,145 @@
+// controllers/followUpController.ts
+
 import { Request, Response } from "express";
 import Lead from "../models/lead.model";
+import FollowUpLog from "../models/followUpLog.model";
 
-// Helper to compute next date from recurrence
-const computeNextDate = (recurrence: string, fromDate?: Date): Date => {
-  const d = fromDate ? new Date(fromDate) : new Date();
-  if (recurrence === "tomorrow") {
-    d.setDate(d.getDate() + 1);
-  } else if (recurrence === "3days") {
-    d.setDate(d.getDate() + 3);
-  } else if (recurrence === "weekly") {
-    d.setDate(d.getDate() + 7);
+// 🔥 Better recurrence handling
+const computeNextDate = (recurrence: string, from?: Date): Date => {
+  const base = from ? new Date(from) : new Date();
+
+  switch (recurrence) {
+    case "tomorrow":
+      base.setDate(base.getDate() + 1);
+      break;
+    case "3days":
+      base.setDate(base.getDate() + 3);
+      break;
+    case "weekly":
+      base.setDate(base.getDate() + 7);
+      break;
+    default:
+      break;
   }
-  return d;
+
+  return base;
 };
 
+// ✅ Schedule Follow-up
 export const scheduleFollowUp = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { recurrence, date, message, whatsappOptIn, active } = req.body;
+    const { recurrence, date, message, whatsappOptIn } = req.body;
 
     const lead = await Lead.findById(id);
-    if (!lead)
+    if (!lead) {
       return res.status(404).json({ success: false, error: "Lead not found" });
+    }
 
-    let followDate: Date | null = null;
+    // ✅ Validate
+    if (!date && !recurrence) {
+      return res.status(400).json({
+        success: false,
+        error: "Either date or recurrence is required",
+      });
+    }
+
+    let followDate: Date;
 
     if (date) {
-      // Frontend sends YYYY-MM-DD → convert to Date
       followDate = new Date(date);
-    } else if (recurrence) {
+    } else {
       followDate = computeNextDate(recurrence);
     }
 
+    // ✅ Update lead
     lead.followUp = {
-      date: followDate,                 // ✅ Date type
+      date: followDate,
       recurrence: recurrence || "once",
       message: message || null,
       whatsappOptIn: !!whatsappOptIn,
-      active: active ?? true,
+      active: true,
     };
 
     await lead.save();
 
-    return res.json({ success: true, lead });
+    return res.json({
+      success: true,
+      message: "Follow-up scheduled successfully",
+      data: lead.followUp,
+    });
+
   } catch (err) {
     console.error("Schedule follow-up error:", err);
     return res.status(500).json({ success: false, error: "Server error" });
   }
 };
 
-// Cancel follow-up
+// ✅ Cancel Follow-up
 export const cancelFollowUp = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const lead = await Lead.findById(id);
-    if (!lead) return res.status(404).json({ success: false, error: "Lead not found" });
 
-    lead.followUp = { date: null, recurrence: null, message: null, whatsappOptIn: false, active: false };
+    const lead = await Lead.findById(id);
+    if (!lead) {
+      return res.status(404).json({ success: false, error: "Lead not found" });
+    }
+
+    lead.followUp = {
+      date: null,
+      recurrence: null,
+      message: null,
+      whatsappOptIn: false,
+      active: false,
+    };
+
     await lead.save();
-    return res.json({ success: true, message: "Follow-up cancelled" });
+
+    return res.json({
+      success: true,
+      message: "Follow-up cancelled",
+    });
+
   } catch (err) {
     console.error("Cancel follow-up error:", err);
     return res.status(500).json({ success: false, error: "Server error" });
   }
 };
 
-// List follow-ups (optional filter)
+// ✅ List All Active Follow-ups
 export const listFollowUps = async (_req: Request, res: Response) => {
   try {
-    const followUps = await Lead.find({ "followUp.active": true }).sort({ "followUp.date": 1 });
-    return res.json({ success: true, followUps });
+    const followUps = await Lead.find({
+      "followUp.active": true,
+      "followUp.date": { $ne: null },
+    })
+      .select("fullName phone email followUp")
+      .sort({ "followUp.date": 1 });
+
+    return res.json({ success: true, data: followUps });
+
   } catch (err) {
     console.error("List follow-ups error:", err);
     return res.status(500).json({ success: false, error: "Server error" });
   }
 };
 
-export const getUpcomingFollowUps = async (req: Request, res: Response) => {
+// ✅ Upcoming Follow-ups (FIXED DATE LOGIC)
+export const getUpcomingFollowUps = async (_req: Request, res: Response) => {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const now = new Date();
 
     const upcoming = await Lead.find({
       "followUp.active": true,
-      "followUp.date": { $gte: today } // string comparison works on YYYY-MM-DD
+      "followUp.date": { $gte: now },
     })
-      .select("fullName phone followUp")
+      .select("fullName phone email followUp")
       .sort({ "followUp.date": 1 });
 
-    return res.json({ success: true, upcoming });
+    return res.json({ success: true, data: upcoming });
 
   } catch (err) {
-    console.error("Calendar fetch error:", err);
+    console.error("Upcoming follow-ups error:", err);
     return res.status(500).json({ success: false, error: "Server error" });
   }
 };

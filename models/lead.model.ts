@@ -10,7 +10,7 @@ export interface ILead extends Document {
   formId?: string | null;
   whenAreYouPlanningToPurchase?: string | null;
   whatIsYourBudget?: string | null;
-  message?: string | null;
+  message?: string ;
   extraFields?: Record<string, any>;
   rawData?: any;
   receivedAt?: Date;
@@ -42,8 +42,10 @@ const LeadSchema = new Schema<ILead>(
 
     whenAreYouPlanningToPurchase: { type: String, default: null },
     whatIsYourBudget: { type: String, default: null },
-    message: { type: String, default: null },
-
+    message: {
+      type: String,
+      default: "No message provided",
+    },
     extraFields: { type: Schema.Types.Mixed, default: {} },   // ⭐ dynamic fields
     rawData: { type: Schema.Types.Mixed, default: {} },        // ⭐ full original row
 
