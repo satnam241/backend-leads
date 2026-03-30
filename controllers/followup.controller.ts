@@ -1,8 +1,6 @@
-// controllers/followUpController.ts
-
 import { Request, Response } from "express";
 import Lead from "../models/lead.model";
-import FollowUpLog from "../models/followUpLog.model";
+//import FollowUpLog from "../models/followUpLog.model";
 
 // 🔥 Better recurrence handling
 const computeNextDate = (recurrence: string, from?: Date): Date => {
