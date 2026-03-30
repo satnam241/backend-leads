@@ -2,7 +2,7 @@
 import express, { Request, Response } from "express";
 import Lead from "../models/lead.model";
 import { normalizePhone } from "../services/phone";
-import { sendMessageService } from "../services/messageService";
+import { sendMessageToLead } from "../services/messageService";
 
 const router = express.Router();
 
@@ -37,10 +37,14 @@ router.post("/", async (req: Request, res: Response) => {
 
     // 📤 Auto-response (WhatsApp + Email)
     try {
-      await sendMessageService(String(lead._id), "both");
+      await sendMessageToLead({
+        leadId: String(lead._id),
+        messageType: "both",
+      });
+    
       console.log("📲 WhatsApp + Email auto-reply sent");
     } catch (err) {
-      console.error("❌ sendMessageService error:", err);
+      console.error("❌ sendMessageToLead error:", err);
     }
 
     // Twilio requires XML

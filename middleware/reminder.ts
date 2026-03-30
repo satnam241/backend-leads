@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import Lead from "../models/lead.model";
-import { sendMessageService } from "../services/messageService";
+import { sendMessageToLead } from "../services/messageService";
 
 // ⏱️ Run every 5 minutes
 cron.schedule("*/5 * * * *", async () => {
@@ -24,14 +24,15 @@ cron.schedule("*/5 * * * *", async () => {
 
       // 2️⃣ Auto send BOTH: WhatsApp + Email + Brochure
       try {
-        await sendMessageService(
-          leadId, // FIXED ✔ (was lead._id)
-          "both",
-          lead.followUp?.message || undefined  // custom follow-up message
-        );
-        console.log(`📩 Auto follow-up sent to lead ${leadId}`);
+        await sendMessageToLead({
+          leadId: String(lead._id), // ensure string
+          messageType: "both",
+          customMessage: lead.followUp?.message || undefined,
+        });
+      
+        console.log(`📩 Auto follow-up sent to lead ${lead._id}`);
       } catch (err) {
-        console.error(`❌ Error sending auto message to ${leadId}:`, err);
+        console.error(`❌ Error sending auto message to ${lead._id}:`, err);
       }
 
       // 3️⃣ Recurrence logic (tomorrow / 3days / weekly)

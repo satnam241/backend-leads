@@ -1,5 +1,4 @@
 "use strict";
-// // // import mongoose, { Schema, Document } from "mongoose";
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -34,170 +33,6 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-// // // export interface ILead extends Document {
-// // //   fullName: string;
-// // //   email?: string;
-// // //   phone?: string;
-// // //   phoneVerified?: boolean;
-// // //   whenAreYouPlanningToPurchase?: string;
-// // //   whatIsYourBudget?: string;
-// // //   message?: string;
-// // //   source: string;
-// // //   status: "new" | "contacted" | "converted";
-// // //   rawData?: any;
-// // //   createdAt: Date;
-// // // }
-// // // const LeadSchema: Schema = new Schema(
-// // //   {
-// // //     fullName: { type: String, required: true }, // full_name
-// // //     email: { type: String }, // email
-// // //     phone: { type: String }, // phone_number
-// // //     phoneVerified: { type: Boolean, default: false }, // phone_number_verified
-// // //     whenAreYouPlanningToPurchase: { type: String }, // when_are_you_planning_to_purchase
-// // //     whatIsYourBudget: { type: String }, // what_is_your_budget
-// // //     message: { type: String },
-// // //     source: { type: String, required: true },
-// // //     status: {
-// // //       type: String,
-// // //       enum: ["new", "contacted", "converted"],
-// // //       default: "new",
-// // //     },
-// // //     rawData: { type: Schema.Types.Mixed },
-// // //   },
-// // //   { timestamps: true }
-// // // );
-// // // export default mongoose.model<ILead>("Lead", LeadSchema);
-// // // models/lead.model.ts
-// // import mongoose, { Schema, Document } from "mongoose";
-// // import validator from "validator";
-// // export interface ILead extends Document {
-// //   fullName: string;
-// //   email?: string | null;
-// //   phone?: string | null;
-// //   phoneVerified?: boolean;
-// //   whenAreYouPlanningToPurchase?: string | null;
-// //   whatIsYourBudget?: string | null;
-// //   message?: string | null;
-// //   source: string;
-// //   status: "new" | "contacted" | "converted";
-// //   rawData?: any;
-// //   createdAt: Date;
-// // }
-// // const LeadSchema: Schema = new Schema(
-// //   {
-// //     fullName: { type: String, required: true, trim: true, default: "Unknown User" },
-// //     email: {
-// //       type: String,
-// //       trim: true,
-// //       lowercase: true,
-// //       validate: {
-// //         validator: (v: string) => !v || validator.isEmail(v),
-// //         message: "Invalid email",
-// //       },
-// //       default: null,
-// //     },
-// //     phone: { type: String, trim: true, default: null },
-// //     phoneVerified: { type: Boolean, default: false },
-// //     whenAreYouPlanningToPurchase: { type: String, default: null },
-// //     whatIsYourBudget: { type: String, default: null },
-// //     message: { type: String, default: null },
-// //     source: { type: String, required: true },
-// //     status: {
-// //       type: String,
-// //       enum: ["new", "contacted", "converted"],
-// //       default: "new",
-// //     },
-// //     rawData: { type: Schema.Types.Mixed },
-// //   },
-// //   { timestamps: true }
-// // );
-// // // Useful indexes: unique when value exists (sparse)
-// // LeadSchema.index({ email: 1 }, { unique: true, sparse: true });
-// // LeadSchema.index({ phone: 1 }, { unique: true, sparse: true });
-// // export default mongoose.model<ILead>("Lead", LeadSchema);
-// import mongoose, { Schema, Document } from "mongoose";
-// import validator from "validator";
-// export interface ILead extends Document {
-//   fullName: string;
-//   email?: string | null;
-//   phone?: string | null;
-//   phoneVerified?: boolean;
-//   whenAreYouPlanningToPurchase?: string | null;
-//   whatIsYourBudget?: string | null;
-//   message?: string | null;
-//   source: string;
-//   status: "new" | "contacted" | "converted";
-//   rawData?: any; // will store full original payload
-//   extraFields?: Record<string, any>; // ✅ dynamic extra form fields
-//   createdAt: Date;
-//   updatedAt: Date;
-// }
-// const LeadSchema: Schema = new Schema(
-//   {
-//     fullName: {
-//       type: String,
-//       required: true,
-//       trim: true,
-//       default: "Unknown User",
-//     },
-//     email: {
-//       type: String,
-//       trim: true,
-//       lowercase: true,
-//       validate: {
-//         validator: (v: string) => !v || validator.isEmail(v),
-//         message: "Invalid email",
-//       },
-//       default: null,
-//     },
-//     phone: {
-//       type: String,
-//       trim: true,
-//       default: null,
-//     },
-//     phoneVerified: {
-//       type: Boolean,
-//       default: false,
-//     },
-//     whenAreYouPlanningToPurchase: {
-//       type: String,
-//       default: null,
-//     },
-//     whatIsYourBudget: {
-//       type: String,
-//       default: null,
-//     },
-//     message: {
-//       type: String,
-//       default: null,
-//     },
-//     source: {
-//       type: String,
-//       required: true,
-//       default: "facebook",
-//     },
-//     status: {
-//       type: String,
-//       enum: ["new", "contacted", "converted"],
-//       default: "new",
-//     },
-//     // ✅ dynamic fields from FB form (city, state, projectName, etc.)
-//     extraFields: {
-//       type: Schema.Types.Mixed,
-//       default: {},
-//     },
-//     // ✅ store full original payload for audit/debug
-//     rawData: {
-//       type: Schema.Types.Mixed,
-//       default: {},
-//     },
-//   },
-//   { timestamps: true }
-// );
-// // ✅ Allow unique email/phone but only if present
-// LeadSchema.index({ email: 1 }, { unique: true, sparse: true });
-// LeadSchema.index({ phone: 1 }, { unique: true, sparse: true });
-// export default mongoose.model<ILead>("Lead", LeadSchema);
 const mongoose_1 = __importStar(require("mongoose"));
 const LeadSchema = new mongoose_1.Schema({
     fullName: { type: String, trim: true },
@@ -208,22 +43,23 @@ const LeadSchema = new mongoose_1.Schema({
     formId: { type: String },
     whenAreYouPlanningToPurchase: { type: String, default: null },
     whatIsYourBudget: { type: String, default: null },
-    message: { type: String, default: null },
-    extraFields: { type: mongoose_1.Schema.Types.Mixed, default: {} },
-    rawData: { type: mongoose_1.Schema.Types.Mixed },
+    message: {
+        type: String,
+        default: "No message provided",
+    },
+    extraFields: { type: mongoose_1.Schema.Types.Mixed, default: {} }, // ⭐ dynamic fields
+    rawData: { type: mongoose_1.Schema.Types.Mixed, default: {} }, // ⭐ full original row
     receivedAt: { type: Date },
-    // reminder fields
     reminderCount: { type: Number, default: 0 },
     lastReminderSent: { type: Date, default: null },
-    status: { type: String, default: "new" }, // new, contacted, closed
-    // 🆕 follow-up scheduling
+    status: { type: String, default: "new" },
     followUp: {
         date: { type: Date, default: null },
         recurrence: { type: String, default: null },
         message: { type: String, default: null },
         whatsappOptIn: { type: Boolean, default: false },
-        active: { type: Boolean, default: false }
-    }
+        active: { type: Boolean, default: false },
+    },
 }, { timestamps: true });
 exports.default = mongoose_1.default.model("Lead", LeadSchema);
 //# sourceMappingURL=lead.model.js.map

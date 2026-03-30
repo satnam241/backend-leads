@@ -22,42 +22,56 @@ function extractFields(rawData) {
     };
     if (!rawData)
         return extracted;
-    // Handle FB field_data format
+    const messageKeys = [
+        "message",
+        "description",
+        "query",
+        "requirement",
+        "comment",
+        "details",
+        "note",
+        "feedback",
+    ];
+    // ✅ Case 1: FB field_data
     if (Array.isArray(rawData.field_data)) {
         for (const f of rawData.field_data) {
             const key = (f.name || "").toLowerCase();
-            const val = Array.isArray(f.values) && f.values.length ? f.values[0] : undefined;
+            const val = f.values?.[0];
             if (!val)
                 continue;
             if (key.includes("name"))
-                extracted.fullName = extracted.fullName || val;
+                extracted.fullName || (extracted.fullName = val);
             else if (key.includes("email"))
-                extracted.email = extracted.email || val;
+                extracted.email || (extracted.email = val);
             else if (key.includes("phone") || key.includes("mobile"))
-                extracted.phone = extracted.phone || val;
-            else if (key.includes("message"))
-                extracted.message = extracted.message || val;
+                extracted.phone || (extracted.phone = val);
+            else if (messageKeys.some((k) => key.includes(k)))
+                extracted.message || (extracted.message = val);
             else
                 extracted.extraFields[key] = val;
         }
     }
-    // Handle custom JSON format
+    // ✅ Case 2: direct object (IMPORTANT)
     for (const [key, val] of Object.entries(rawData)) {
         const k = key.toLowerCase();
         if (!val)
             continue;
         if (k.includes("name"))
-            extracted.fullName = extracted.fullName || val;
+            extracted.fullName || (extracted.fullName = val);
         else if (k.includes("email"))
-            extracted.email = extracted.email || val;
-        else if (k.includes("phone") || k.includes("mobile"))
-            extracted.phone = extracted.phone || val;
-        else if (k.includes("message"))
-            extracted.message = extracted.message || val;
-        else if (k === "source")
-            extracted.source = val;
+            extracted.email || (extracted.email = val);
+        else if (k.includes("phone"))
+            extracted.phone || (extracted.phone = val);
+        else if (messageKeys.some((m) => k.includes(m)))
+            extracted.message || (extracted.message = val);
         else
             extracted.extraFields[k] = val;
+    }
+    // ✅ FINAL FALLBACK (VERY IMPORTANT)
+    if (!extracted.message) {
+        const possibleMessage = Object.values(rawData).find((v) => typeof v === "string" && v.length > 10);
+        if (possibleMessage)
+            extracted.message = possibleMessage;
     }
     return extracted;
 }
@@ -73,7 +87,11 @@ const createLeadController = async (req, res) => {
         const fullName = bodyFullName || extracted.fullName || "Unknown User";
         const email = bodyEmail || extracted.email || null;
         const phone = bodyPhone || extracted.phone || null;
-        const message = extracted.message || rawData?.message || null;
+        const message = req.body.message ||
+            extracted.message ||
+            rawData?.message ||
+            Object.values(rawData || {}).find((v) => typeof v === "string" && v.length > 10) ||
+            "No message provided";
         const source = bodySource || extracted.source || "import";
         if (!fullName && !email && !phone) {
             return res.status(400).json({
@@ -124,6 +142,7 @@ const createLeadController = async (req, res) => {
                 source,
                 rawData: {
                     ...rawData,
+                    extractedMessage: message,
                     extraFields: extracted.extraFields,
                 },
             });
@@ -136,7 +155,10 @@ const createLeadController = async (req, res) => {
         (async () => {
             try {
                 if (lead?._id) {
-                    await (0, messageService_1.sendMessageService)(lead._id.toString(), "both");
+                    await (0, messageService_1.sendMessageToLead)({
+                        leadId: lead._id.toString(),
+                        messageType: "both",
+                    });
                     if (lead && lead._id) {
                         console.log("Updated:", String(lead._id));
                     }

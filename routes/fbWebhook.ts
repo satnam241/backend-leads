@@ -101,7 +101,7 @@ import express, { Request, Response } from "express";
 import Lead from "../models/lead.model";
 import { normalizePhone } from "../services/phone";
 import fetchWithRetry from "../services/fetchWithRetry";
-import { sendMessageService } from "../services/messageService";
+import { sendMessageToLead } from "../services/messageService";
 import dotenv from "dotenv";
 
 const router = express.Router();
@@ -227,7 +227,7 @@ router.post("/facebook", async (req: Request, res: Response) => {
           existingLead.formId = form_id || existingLead.formId;
 
           // ✅ IMPORTANT
-          existingLead.message = message;
+          existingLead.message = message ?? undefined;
 
           if (!existingLead.phone && phone) existingLead.phone = phone;
           if (!existingLead.email && email) existingLead.email = email;

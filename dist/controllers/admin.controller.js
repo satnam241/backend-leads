@@ -44,6 +44,48 @@ const nodemailer_1 = __importDefault(require("nodemailer"));
 const admin_model_1 = __importDefault(require("../models/admin.model"));
 const lead_model_1 = __importDefault(require("../models/lead.model"));
 const XLSX = __importStar(require("xlsx"));
+const getEmail = (row) => {
+    const possibleKeys = [
+        "email",
+        "Email",
+        "EMAIL",
+        "email_address",
+        "Email Address",
+        "E-mail",
+        "e-mail",
+        "Mail",
+        "mail",
+        "contact_email",
+        "Contact Email",
+    ];
+    for (const key of possibleKeys) {
+        if (row[key] && row[key] !== "null" && row[key] !== "") {
+            return String(row[key]).trim();
+        }
+    }
+    return null;
+};
+const getPhone = (row) => {
+    const possibleKeys = [
+        "phone",
+        "Phone",
+        "PHONE",
+        "mobile",
+        "Mobile",
+        "MOBILE",
+        "contact",
+        "Contact",
+        "Phone Number",
+        "Mobile Number",
+        "Contact Number",
+    ];
+    for (const key of possibleKeys) {
+        if (row[key] && row[key] !== "null" && row[key] !== "") {
+            return String(row[key]).trim();
+        }
+    }
+    return null;
+};
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 const FRONTEND_URL = process.env.FRONTEND_URL;
 // ==============================
@@ -348,14 +390,8 @@ const importLeadsController = async (req, res) => {
                     row["Full Name"] ||
                     row["full_name"] ||
                     "Unknown User",
-                email: row.email && row.email !== "null"
-                    ? row.email.toLowerCase().trim()
-                    : `noemail_${Date.now()}_${Math.random()}@import.com`,
-                phone: row.phone ||
-                    row.mobile ||
-                    row["Phone Number"] ||
-                    row["Mobile Number"] ||
-                    null,
+                email: getEmail(row), // ⭐ FIXED
+                phone: getPhone(row), // ⭐ FIXED
                 message: row.message || row.Message || null,
                 whenAreYouPlanningToPurchase: row.whenAreYouPlanningToPurchase ||
                     row.PurchaseTime ||
@@ -364,9 +400,8 @@ const importLeadsController = async (req, res) => {
                     row.Budget ||
                     null,
                 source: "import",
-                // ⭐ Save original cleaned row
+                extraFields: row, // All fields stored
                 rawData: row,
-                extraFields: row,
                 receivedAt: new Date(),
             });
         }

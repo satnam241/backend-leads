@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import Lead from "../models/lead.model";
-import { sendMessageService } from "../services/messageService";
+import { sendMessageToLead } from "../services/messageService";
 
 /**
  * -----------------------------------------
@@ -177,7 +177,10 @@ export const createLeadController = async (req: Request, res: Response) => {
     (async () => {
       try {
         if (lead?._id) {
-          await sendMessageService(lead._id.toString(), "both");
+          await sendMessageToLead({
+            leadId: lead._id.toString(),
+            messageType: "both",
+          });
           if (lead && lead._id) {
             console.log("Updated:", String(lead._id));
           }

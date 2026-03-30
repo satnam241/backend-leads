@@ -22,13 +22,15 @@ node_cron_1.default.schedule("*/5 * * * *", async () => {
             console.log("🔔 Follow-up due for lead:", leadId);
             // 2️⃣ Auto send BOTH: WhatsApp + Email + Brochure
             try {
-                await (0, messageService_1.sendMessageService)(leadId, // FIXED ✔ (was lead._id)
-                "both", lead.followUp?.message || undefined // custom follow-up message
-                );
-                console.log(`📩 Auto follow-up sent to lead ${leadId}`);
+                await (0, messageService_1.sendMessageToLead)({
+                    leadId: String(lead._id), // ensure string
+                    messageType: "both",
+                    customMessage: lead.followUp?.message || undefined,
+                });
+                console.log(`📩 Auto follow-up sent to lead ${lead._id}`);
             }
             catch (err) {
-                console.error(`❌ Error sending auto message to ${leadId}:`, err);
+                console.error(`❌ Error sending auto message to ${lead._id}:`, err);
             }
             // 3️⃣ Recurrence logic (tomorrow / 3days / weekly)
             const recurrence = lead.followUp?.recurrence;

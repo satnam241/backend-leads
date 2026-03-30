@@ -3,10 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+require("dotenv/config"); // ✅ sabse top pe
 const express_1 = __importDefault(require("express"));
-const dotenv_1 = __importDefault(require("dotenv"));
 const cors_1 = __importDefault(require("cors"));
 const DB_1 = require("./database/DB");
+const cron_jobs_1 = require("./cron-jobs");
 const fbWebhook_1 = __importDefault(require("./routes/fbWebhook"));
 const whatsappWebhook_1 = __importDefault(require("./routes/whatsappWebhook"));
 const leads_route_1 = __importDefault(require("./routes/leads.route"));
@@ -15,8 +16,6 @@ const message_routes_1 = __importDefault(require("./routes/message.routes"));
 const debug_route_1 = __importDefault(require("./routes/debug.route"));
 const activity_routes_1 = __importDefault(require("./routes/activity.routes"));
 const followup_routes_1 = __importDefault(require("./routes/followup.routes"));
-dotenv_1.default.config();
-(0, DB_1.connectDB)();
 const app = (0, express_1.default)();
 app.use("/public", express_1.default.static("public"));
 app.use((0, cors_1.default)({ origin: true, credentials: true }));
@@ -33,6 +32,14 @@ app.use("/api/messages", message_routes_1.default);
 app.use("/api/debug", debug_route_1.default);
 app.use("/api/activity", activity_routes_1.default);
 app.use("/api/followup", followup_routes_1.default);
-const PORT = process.env.PORT || 4520;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+// ✅ PROPER SERVER START
+const startServer = async () => {
+    await (0, DB_1.connectDB)(); // DB ready hone do
+    (0, cron_jobs_1.startAllJobs)(); // 🔥 cron yaha start karo
+    const PORT = process.env.PORT || 4520;
+    app.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+    });
+};
+startServer();
 //# sourceMappingURL=server.js.map

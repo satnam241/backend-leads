@@ -1,46 +1,66 @@
 "use strict";
+// controllers/followUpController.ts
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getUpcomingFollowUps = exports.listFollowUps = exports.cancelFollowUp = exports.scheduleFollowUp = void 0;
 const lead_model_1 = __importDefault(require("../models/lead.model"));
-// Helper to compute next date from recurrence
-const computeNextDate = (recurrence, fromDate) => {
-    const d = fromDate ? new Date(fromDate) : new Date();
-    if (recurrence === "tomorrow") {
-        d.setDate(d.getDate() + 1);
+// 🔥 Better recurrence handling
+const computeNextDate = (recurrence, from) => {
+    const base = from ? new Date(from) : new Date();
+    switch (recurrence) {
+        case "tomorrow":
+            base.setDate(base.getDate() + 1);
+            break;
+        case "3days":
+            base.setDate(base.getDate() + 3);
+            break;
+        case "weekly":
+            base.setDate(base.getDate() + 7);
+            break;
+        default:
+            break;
     }
-    else if (recurrence === "3days") {
-        d.setDate(d.getDate() + 3);
-    }
-    else if (recurrence === "weekly") {
-        d.setDate(d.getDate() + 7);
-    }
-    return d;
+    return base;
 };
-// Create / Update follow-up for a lead
+// ✅ Schedule Follow-up
 const scheduleFollowUp = async (req, res) => {
     try {
         const { id } = req.params;
-        const { recurrence, date, message, whatsappOptIn, active } = req.body;
+        const { recurrence, date, message, whatsappOptIn } = req.body;
         const lead = await lead_model_1.default.findById(id);
-        if (!lead)
+        if (!lead) {
             return res.status(404).json({ success: false, error: "Lead not found" });
-        let followDate = null;
-        if (date)
+        }
+        // ✅ Validate
+        if (!date && !recurrence) {
+            return res.status(400).json({
+                success: false,
+                error: "Either date or recurrence is required",
+            });
+        }
+        let followDate;
+        if (date) {
             followDate = new Date(date);
-        else if (recurrence)
+        }
+        else {
             followDate = computeNextDate(recurrence);
+        }
+        // ✅ Update lead
         lead.followUp = {
             date: followDate,
-            recurrence: recurrence || (date ? "once" : null),
+            recurrence: recurrence || "once",
             message: message || null,
             whatsappOptIn: !!whatsappOptIn,
-            active: active === undefined ? true : !!active
+            active: true,
         };
         await lead.save();
-        return res.json({ success: true, lead });
+        return res.json({
+            success: true,
+            message: "Follow-up scheduled successfully",
+            data: lead.followUp,
+        });
     }
     catch (err) {
         console.error("Schedule follow-up error:", err);
@@ -48,16 +68,26 @@ const scheduleFollowUp = async (req, res) => {
     }
 };
 exports.scheduleFollowUp = scheduleFollowUp;
-// Cancel follow-up
+// ✅ Cancel Follow-up
 const cancelFollowUp = async (req, res) => {
     try {
         const { id } = req.params;
         const lead = await lead_model_1.default.findById(id);
-        if (!lead)
+        if (!lead) {
             return res.status(404).json({ success: false, error: "Lead not found" });
-        lead.followUp = { date: null, recurrence: null, message: null, whatsappOptIn: false, active: false };
+        }
+        lead.followUp = {
+            date: null,
+            recurrence: null,
+            message: null,
+            whatsappOptIn: false,
+            active: false,
+        };
         await lead.save();
-        return res.json({ success: true, message: "Follow-up cancelled" });
+        return res.json({
+            success: true,
+            message: "Follow-up cancelled",
+        });
     }
     catch (err) {
         console.error("Cancel follow-up error:", err);
@@ -65,11 +95,16 @@ const cancelFollowUp = async (req, res) => {
     }
 };
 exports.cancelFollowUp = cancelFollowUp;
-// List follow-ups (optional filter)
+// ✅ List All Active Follow-ups
 const listFollowUps = async (_req, res) => {
     try {
-        const followUps = await lead_model_1.default.find({ "followUp.active": true }).sort({ "followUp.date": 1 });
-        return res.json({ success: true, followUps });
+        const followUps = await lead_model_1.default.find({
+            "followUp.active": true,
+            "followUp.date": { $ne: null },
+        })
+            .select("fullName phone email followUp")
+            .sort({ "followUp.date": 1 });
+        return res.json({ success: true, data: followUps });
     }
     catch (err) {
         console.error("List follow-ups error:", err);
@@ -77,21 +112,20 @@ const listFollowUps = async (_req, res) => {
     }
 };
 exports.listFollowUps = listFollowUps;
-const getUpcomingFollowUps = async (req, res) => {
+// ✅ Upcoming Follow-ups (FIXED DATE LOGIC)
+const getUpcomingFollowUps = async (_req, res) => {
     try {
+        const now = new Date();
         const upcoming = await lead_model_1.default.find({
             "followUp.active": true,
-            "followUp.date": { $gte: new Date() } // only future events
+            "followUp.date": { $gte: now },
         })
-            .select("fullName phone followUp")
+            .select("fullName phone email followUp")
             .sort({ "followUp.date": 1 });
-        return res.json({
-            success: true,
-            upcoming
-        });
+        return res.json({ success: true, data: upcoming });
     }
     catch (err) {
-        console.error("❌ Calendar fetch error:", err);
+        console.error("Upcoming follow-ups error:", err);
         return res.status(500).json({ success: false, error: "Server error" });
     }
 };

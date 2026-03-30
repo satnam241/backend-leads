@@ -1,4 +1,5 @@
 "use strict";
+// models/followUpLog.model.ts
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -37,9 +38,19 @@ const mongoose_1 = __importStar(require("mongoose"));
 const FollowUpLogSchema = new mongoose_1.Schema({
     leadId: { type: mongoose_1.Schema.Types.ObjectId, ref: "Lead", required: true },
     message: { type: String, required: true },
-    type: { type: String, enum: ["email", "whatsapp", "both"], required: true },
-    date: { type: Date, default: Date.now },
-    status: { type: String, enum: ["sent", "failed"], default: "sent" }
+    type: {
+        type: String,
+        enum: ["email", "whatsapp", "both"],
+        required: true,
+    },
+    status: {
+        type: String,
+        enum: ["pending", "sent", "failed"],
+        default: "pending",
+    },
+    scheduledAt: { type: Date },
+    sentAt: { type: Date },
+    error: { type: String },
 }, { timestamps: true });
 exports.default = mongoose_1.default.model("FollowUpLog", FollowUpLogSchema);
-//# sourceMappingURL=followupLog.model.js.map
+//# sourceMappingURL=followUpLog.model.js.map
