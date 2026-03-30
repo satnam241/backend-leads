@@ -97,166 +97,171 @@
 
 // export default router;
 
-
 import express, { Request, Response } from "express";
 import Lead from "../models/lead.model";
 import { normalizePhone } from "../services/phone";
 import fetchWithRetry from "../services/fetchWithRetry";
+import { sendMessageService } from "../services/messageService";
 import dotenv from "dotenv";
+
 const router = express.Router();
 dotenv.config();
-// 🔹 Environment Variables
-const FB_VERSION = process.env.FB_GRAPH_VERSION || "v20.0";
+
+// 🔹 ENV
+const FB_VERSION = process.env.FB_GRAPH_VERSION || "v23.0";
 const PAGE_TOKEN = process.env.FB_PAGE_ACCESS_TOKEN;
 const VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
 
-
-// 🔹 Safety checks
-if (!PAGE_TOKEN) console.log("⚠️ Missing FB_PAGE_ACCESS_TOKEN in .env");
-if (!VERIFY_TOKEN) console.log("⚠️ Missing FB_VERIFY_TOKEN in .env");
-
-
+// 🔹 VERIFY WEBHOOK
 router.get("/facebook", (req: Request, res: Response) => {
-  try {
-    const mode = req.query["hub.mode"];
-    const token = req.query["hub.verify_token"];
-    const challenge = req.query["hub.challenge"];
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
 
-    // 🧠 Debug log to always see incoming params
-    console.log("📩 Webhook verification attempt:", { mode, token, challenge });
+  console.log("📩 Verification:", { mode, token });
 
-    // ✅ Case 1 — Facebook verification request
-    if (mode === "subscribe" && token === VERIFY_TOKEN) {
-      console.log("✅ Facebook webhook verified successfully!");
-      return res.status(200).send(challenge);
-    }
-
-    // ⚠️ Case 2 — Missing params (like when Postman/Render just pings the route)
-    if (!mode && !token && !challenge) {
-      return res
-        .status(200)
-        .send("✅ Facebook Webhook endpoint is live. Please verify using hub params.");
-    }
-
-    // ❌ Case 3 — Invalid verify token
-    console.warn("❌ Webhook verification failed (invalid verify token)");
-    return res
-      .status(403)
-      .send("❌ Invalid verify token or missing params. Check your .env VERIFY_TOKEN.");
-  } catch (err) {
-    console.error("❌ Webhook verification error:", err);
-    return res.status(500).send("Internal server error during verification");
+  if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    console.log("✅ Webhook verified");
+    return res.status(200).send(challenge);
   }
+
+  return res.status(403).send("❌ Verification failed");
 });
 
-
-/**
- * ===========================================================
- * ✅ STEP 2 — RECEIVE WEBHOOK EVENTS (POST)
- * ===========================================================
- * Facebook sends POST requests when a new lead is generated.
- * The payload contains leadgen_id, form_id, and page_id.
- */
+// 🔥 POST WEBHOOK
 router.post("/facebook", async (req: Request, res: Response) => {
   try {
-    // Always respond immediately to prevent retries
     res.sendStatus(200);
 
     const entries = req.body?.entry ?? [];
-    if (!entries.length) {
-      console.warn("⚠️ No 'entry' data in webhook payload");
-      return;
-    }
 
     for (const entry of entries) {
-      const changes = entry?.changes || [];
-      for (const change of changes) {
+      for (const change of entry?.changes || []) {
         if (change?.field !== "leadgen") continue;
 
-        const { leadgen_id: leadgenId, form_id: formId, page_id: pageId } = change.value || {};
+        const { leadgen_id, form_id } = change.value || {};
+        if (!leadgen_id) continue;
 
-        if (!leadgenId) {
-          console.warn("⚠️ leadgen_id missing — skipping this event.");
+        console.log("📥 New FB Lead:", leadgen_id);
+
+        // ❌ Duplicate check
+        const already = await Lead.findOne({ "rawData.id": leadgen_id });
+        if (already) {
+          console.log("↩️ Duplicate skipped");
           continue;
         }
 
-        console.log("📥 Incoming lead event:", { leadgenId, formId, pageId });
-
-        // 🧠 Prevent duplicate lead saves
-        const existing = await Lead.findOne({ "rawData.id": leadgenId });
-        if (existing) {
-          console.log("↩️ Duplicate lead ignored:", leadgenId);
-          continue;
-        }
-
-        // 🧠 Fetch full lead data from Facebook Graph API
-        const url = `https://graph.facebook.com/${FB_VERSION}/${leadgenId}?access_token=${PAGE_TOKEN}`;
+        // 🔥 Fetch FB data
+        const url = `https://graph.facebook.com/${FB_VERSION}/${leadgen_id}?access_token=${PAGE_TOKEN}`;
 
         let leadData: any;
         try {
           leadData = await fetchWithRetry(url, 3, 800);
-          console.log("✅ Lead data fetched:", leadData);
         } catch (err: any) {
-          console.error(`❌ Fetch failed for lead ${leadgenId}:`, err.message);
-          continue;
-        }
-        
-
-        if (!leadData?.field_data) {
-          console.error("❌ Lead data empty or invalid for:", leadgenId);
+          console.error("❌ FB fetch failed:", err.message);
           continue;
         }
 
-        // 🧩 Transform field_data → key:value object
+        if (!leadData?.field_data) continue;
+
+        // 🔥 Convert fields
         const fields: Record<string, any> = {};
         for (const f of leadData.field_data) {
-          const key = (f.name || "").trim().replace(/[^\w]/g, "_").toLowerCase();
+          const key = (f.name || "")
+            .trim()
+            .replace(/[^\w]/g, "_")
+            .toLowerCase();
+
           fields[key] = f.values?.[0] ?? "";
         }
 
-        // 📧 & 📞 Extract key data
+        // 🔥 MESSAGE EXTRACTION (MAIN FIX)
+        const messageKeys = [
+          "message",
+          "description",
+          "query",
+          "requirement",
+          "comment",
+          "details",
+        ];
+
+        let message: string | null = null;
+
+        for (const key of Object.keys(fields)) {
+          const k = key.toLowerCase();
+
+          if (messageKeys.some((m) => k.includes(m))) {
+            message = fields[key];
+            break;
+          }
+        }
+
+        // 🔥 fallback
+        if (!message) {
+          const possible = Object.values(fields).find(
+            (v) => typeof v === "string" && v.length > 10
+          );
+          message = possible || "No message provided";
+        }
+
+        // 🔥 Contact info
         const email = fields.email || null;
         const rawPhone = fields.phone_number || fields.phone || null;
         const phone = rawPhone ? normalizePhone(rawPhone) : null;
 
-        // 🧠 Deduplicate based on phone/email
+        // 🔁 Check existing
         let existingLead = null;
         if (phone) existingLead = await Lead.findOne({ phone });
-        if (!existingLead && email) existingLead = await Lead.findOne({ email });
+        if (!existingLead && email)
+          existingLead = await Lead.findOne({ email });
 
         if (existingLead) {
-          // ♻️ Update existing record
-          existingLead.extraFields = { ...existingLead.extraFields, ...fields };
+          // 🔁 UPDATE
+          existingLead.extraFields = {
+            ...existingLead.extraFields,
+            ...fields,
+          };
+
           existingLead.rawData = leadData;
           existingLead.source = "facebook";
-          existingLead.formId = formId || existingLead.formId;
+          existingLead.formId = form_id || existingLead.formId;
+
+          // ✅ IMPORTANT
+          existingLead.message = message;
 
           if (!existingLead.phone && phone) existingLead.phone = phone;
           if (!existingLead.email && email) existingLead.email = email;
 
           await existingLead.save();
-          console.log("♻️ Updated existing lead:", existingLead._id);
+
+          console.log("♻️ Updated lead:", existingLead._id);
         } else {
-          // 🆕 Create new record
+          // 🆕 CREATE
           const newLead = await Lead.create({
             fullName: fields.full_name || fields.name || "Unknown",
             email,
             phone,
-            phoneVerified: fields.phone_number_verified === "true",
+            phoneVerified:
+              fields.phone_number_verified === "true",
+
+            // 🔥 MAIN FIX
+            message,
+
             source: "facebook",
-            formId,
+            formId: form_id,
             extraFields: fields,
             rawData: leadData,
+
             status: "new",
             receivedAt: new Date(),
           });
 
-          console.log("🆕 New Facebook lead saved:", newLead._id);
+          console.log("🆕 New lead saved:", newLead._id);
         }
       }
     }
-  } catch (error: any) {
-    console.error("❌ Facebook webhook processing error:", error.message || error);
+  } catch (err: any) {
+    console.error("❌ Webhook error:", err.message);
   }
 });
 
