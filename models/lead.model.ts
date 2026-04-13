@@ -139,9 +139,8 @@ LeadSchema.pre<Query<any, ILead>>(/^find/, function (next) {
 });
 
 
-// ✅ OPTIONAL: include deleted manually
-LeadSchema.query.withDeleted = function () {
-  return this.setQuery({});
+(LeadSchema.query as any).withDeleted = function () {
+  return this.where({});
 };
 
 

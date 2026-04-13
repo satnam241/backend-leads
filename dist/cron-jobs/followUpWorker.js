@@ -9,15 +9,14 @@ const lead_model_1 = __importDefault(require("../models/lead.model"));
 const messageService_1 = require("../services/messageService");
 const startFollowUpJob = () => {
     console.log("⏰ Follow-up job started...");
-    // every 10 seconds (dev) → change to "* * * * *" in production
-    node_cron_1.default.schedule("*/10 * * * * *", async () => {
+    node_cron_1.default.schedule("* * * * *", async () => {
         try {
             console.log("🔄 Checking follow-ups...");
             const now = new Date();
             const leads = await lead_model_1.default.find({
                 "followUp.active": true,
                 "followUp.date": { $lte: now },
-            }).limit(50); // 🔥 prevent overload
+            }).limit(30); // 🔥 prevent overload
             if (!leads.length)
                 return;
             console.log(`📊 Found ${leads.length} follow-ups`);

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getLeadsController = exports.deleteLeadController = exports.updateLeadController = exports.createLeadController = void 0;
+exports.getLeadsController = exports.bulkRestoreLeadsController = exports.bulkDeleteLeadsController = exports.restoreLeadController = exports.deleteLeadController = exports.updateLeadController = exports.createLeadController = void 0;
 const lead_model_1 = __importDefault(require("../models/lead.model"));
 const messageService_1 = require("../services/messageService");
 /**
@@ -80,14 +80,123 @@ function extractFields(rawData) {
  * 🟢 Create Lead (FB + Manual + Import)
  * -----------------------------------------
  */
+// export const createLeadController = async (req: Request, res: Response) => {
+//   try {
+//     const {
+//       fullName: bodyFullName,
+//       email: bodyEmail,
+//       phone: bodyPhone,
+//       phoneVerified,
+//       whenAreYouPlanningToPurchase,
+//       whatIsYourBudget,
+//       source: bodySource,
+//       rawData,
+//     } = req.body;
+//     const extracted = extractFields(rawData || {});
+//     const fullName = bodyFullName || extracted.fullName || "Unknown User";
+//     const email = bodyEmail || extracted.email || null;
+//     const phone = bodyPhone || extracted.phone || null;
+//     const message =
+//     req.body.message ||
+//     extracted.message ||
+//     rawData?.message ||
+//     Object.values(rawData || {}).find(
+//       (v) => typeof v === "string" && v.length > 10
+//     ) ||
+//     "No message provided";
+//      const source = bodySource || extracted.source || "import";
+//     if (!fullName && !email && !phone) {
+//       return res.status(400).json({
+//         error: "Lead must include at least one of: fullName, email, or phone.",
+//       });
+//     }
+//     // Check duplicate entry
+//     const existingLead = await Lead.findOne({
+//       $or: [{ email }, { phone }],
+//     });
+//     let lead;
+//     if (existingLead) {
+//       // Update existing lead
+//       lead = await Lead.findByIdAndUpdate(
+//         existingLead._id,
+//         {
+//           $set: {
+//             fullName,
+//             email,
+//             phone,
+//             phoneVerified: phoneVerified ?? existingLead.phoneVerified,
+//             whenAreYouPlanningToPurchase,
+//             whatIsYourBudget,
+//             message,
+//             source,
+//             rawData: {
+//               ...existingLead.rawData,
+//               ...rawData,
+//               extraFields: {
+//                 ...existingLead.rawData?.extraFields,
+//                 ...extracted.extraFields,
+//               },
+//             },
+//           },
+//         },
+//         { new: true }
+//       );
+//       if (lead && lead._id) {
+//         console.log("Updated:", String(lead._id));
+//       }
+//      } else {
+//       // Create new lead
+//       lead = new Lead({
+//         fullName,
+//         email,
+//         phone,
+//         phoneVerified: phoneVerified || false,
+//         whenAreYouPlanningToPurchase,
+//         whatIsYourBudget,
+//         message,
+//         source,
+//         rawData: {
+//           ...rawData,
+//           extractedMessage: message,
+//           extraFields: extracted.extraFields,
+//         },
+//       });
+//       await lead.save();
+//       if (lead && lead._id) {
+//         console.log("Updated:", String(lead._id));
+//       }
+//     }
+//     // Auto message send
+//     (async () => {
+//       try {
+//         if (lead?._id) {
+//           await sendMessageToLead({
+//             leadId: lead._id.toString(),
+//             messageType: "both",
+//           });
+//           if (lead && lead._id) {
+//             console.log("Updated:", String(lead._id));
+//           }
+//           }
+//       } catch (err) {
+//         console.error("⚠️ Auto message failed:", err);
+//       }
+//     })();
+//     res.status(201).json(lead);
+//   } catch (err) {
+//     console.error("💥 Error createLeadController:", err);
+//     res.status(500).json({ error: "Failed to create lead" });
+//   }
+// };
 const createLeadController = async (req, res) => {
     try {
-        const { fullName: bodyFullName, email: bodyEmail, phone: bodyPhone, phoneVerified, whenAreYouPlanningToPurchase, whatIsYourBudget, source: bodySource, rawData, } = req.body;
+        const { fullName: bodyFullName, email: bodyEmail, phone: bodyPhone, phoneVerified, whenAreYouPlanningToPurchase, whatIsYourBudget, source: bodySource, rawData, message: bodyMessage, } = req.body;
         const extracted = extractFields(rawData || {});
         const fullName = bodyFullName || extracted.fullName || "Unknown User";
         const email = bodyEmail || extracted.email || null;
         const phone = bodyPhone || extracted.phone || null;
-        const message = req.body.message ||
+        // ✅ STRONG MESSAGE FALLBACK
+        const message = bodyMessage ||
             extracted.message ||
             rawData?.message ||
             Object.values(rawData || {}).find((v) => typeof v === "string" && v.length > 10) ||
@@ -98,81 +207,48 @@ const createLeadController = async (req, res) => {
                 error: "Lead must include at least one of: fullName, email, or phone.",
             });
         }
-        // Check duplicate entry
-        const existingLead = await lead_model_1.default.findOne({
-            $or: [{ email }, { phone }],
+        // ✅ ALWAYS CREATE NEW LEAD (NO DUPLICATE CHECK)
+        const lead = new lead_model_1.default({
+            fullName,
+            email,
+            phone,
+            phoneVerified: phoneVerified || false,
+            whenAreYouPlanningToPurchase,
+            whatIsYourBudget,
+            message,
+            source,
+            rawData: {
+                ...rawData,
+                extractedMessage: message,
+                extraFields: extracted.extraFields,
+            },
         });
-        let lead;
-        if (existingLead) {
-            // Update existing lead
-            lead = await lead_model_1.default.findByIdAndUpdate(existingLead._id, {
-                $set: {
-                    fullName,
-                    email,
-                    phone,
-                    phoneVerified: phoneVerified ?? existingLead.phoneVerified,
-                    whenAreYouPlanningToPurchase,
-                    whatIsYourBudget,
-                    message,
-                    source,
-                    rawData: {
-                        ...existingLead.rawData,
-                        ...rawData,
-                        extraFields: {
-                            ...existingLead.rawData?.extraFields,
-                            ...extracted.extraFields,
-                        },
-                    },
-                },
-            }, { new: true });
-            if (lead && lead._id) {
-                console.log("Updated:", String(lead._id));
-            }
-        }
-        else {
-            // Create new lead
-            lead = new lead_model_1.default({
-                fullName,
-                email,
-                phone,
-                phoneVerified: phoneVerified || false,
-                whenAreYouPlanningToPurchase,
-                whatIsYourBudget,
-                message,
-                source,
-                rawData: {
-                    ...rawData,
-                    extractedMessage: message,
-                    extraFields: extracted.extraFields,
-                },
-            });
-            await lead.save();
-            if (lead && lead._id) {
-                console.log("Updated:", String(lead._id));
-            }
-        }
-        // Auto message send
+        await lead.save();
+        console.log("🆕 New Lead Created:", String(lead._id));
+        // ✅ AUTO MESSAGE (NON-BLOCKING)
         (async () => {
             try {
-                if (lead?._id) {
-                    await (0, messageService_1.sendMessageToLead)({
-                        leadId: lead._id.toString(),
-                        messageType: "both",
-                    });
-                    if (lead && lead._id) {
-                        console.log("Updated:", String(lead._id));
-                    }
-                }
+                await (0, messageService_1.sendMessageToLead)({
+                    leadId: lead._id.toString(),
+                    messageType: "both",
+                });
+                console.log("📩 Auto message sent:", String(lead._id));
             }
             catch (err) {
                 console.error("⚠️ Auto message failed:", err);
             }
         })();
-        res.status(201).json(lead);
+        return res.status(201).json({
+            success: true,
+            data: lead,
+        });
     }
     catch (err) {
         console.error("💥 Error createLeadController:", err);
-        res.status(500).json({ error: "Failed to create lead" });
+        return res.status(500).json({
+            success: false,
+            error: "Failed to create lead",
+        });
     }
 };
 exports.createLeadController = createLeadController;
@@ -226,21 +302,102 @@ exports.updateLeadController = updateLeadController;
 const deleteLeadController = async (req, res) => {
     try {
         const { id } = req.params;
-        const lead = await lead_model_1.default.findByIdAndDelete(id);
+        const lead = await lead_model_1.default.findByIdAndUpdate(id, {
+            isDeleted: true,
+            deletedAt: new Date(),
+        }, { new: true });
         if (!lead) {
             return res.status(404).json({ error: "Lead not found" });
         }
-        if (lead && lead._id) {
-            console.log("Updated:", String(lead._id));
-        }
-        res.status(200).json({ message: "Lead deleted successfully" });
+        console.log("🗑️ Soft deleted lead:", String(lead._id));
+        return res.status(200).json({
+            success: true,
+            message: "Lead moved to trash",
+            data: {
+                id: lead._id,
+                deletedAt: lead.deletedAt,
+            },
+        });
     }
     catch (err) {
-        console.error("💥 Error deleteLeadController:", err);
-        res.status(500).json({ error: "Failed to delete lead" });
+        console.error("💥 Error delete Lead:", err);
+        return res.status(500).json({
+            success: false,
+            error: "Failed to delete lead",
+        });
     }
 };
 exports.deleteLeadController = deleteLeadController;
+const restoreLeadController = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const lead = await lead_model_1.default.findByIdAndUpdate(id, {
+            isDeleted: false,
+            deletedAt: null,
+        }, { new: true });
+        if (!lead) {
+            return res.status(404).json({ error: "Lead not found" });
+        }
+        return res.json({
+            success: true,
+            message: "Lead restored successfully",
+            data: lead,
+        });
+    }
+    catch (err) {
+        console.error("Restore error:", err);
+        return res.status(500).json({ error: "Failed to restore lead" });
+    }
+};
+exports.restoreLeadController = restoreLeadController;
+const bulkDeleteLeadsController = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        // validation
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: "ids array is required",
+            });
+        }
+        const result = await lead_model_1.default.updateMany({ _id: { $in: ids } }, {
+            isDeleted: true,
+            deletedAt: new Date(),
+        });
+        return res.json({
+            success: true,
+            message: "Leads moved to trash",
+            modifiedCount: result.modifiedCount,
+        });
+    }
+    catch (err) {
+        console.error("💥 Bulk delete error:", err);
+        return res.status(500).json({
+            success: false,
+            error: "Bulk delete failed",
+        });
+    }
+};
+exports.bulkDeleteLeadsController = bulkDeleteLeadsController;
+const bulkRestoreLeadsController = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        const result = await lead_model_1.default.updateMany({ _id: { $in: ids } }, {
+            isDeleted: false,
+            deletedAt: null,
+        });
+        return res.json({
+            success: true,
+            message: "Leads restored",
+            modifiedCount: result.modifiedCount,
+        });
+    }
+    catch (err) {
+        console.error("Bulk restore error:", err);
+        return res.status(500).json({ error: "Failed to restore" });
+    }
+};
+exports.bulkRestoreLeadsController = bulkRestoreLeadsController;
 const getLeadsController = async (req, res) => {
     try {
         const { id, email, phone, source, followupFilter } = req.query;

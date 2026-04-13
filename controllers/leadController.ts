@@ -260,7 +260,7 @@ export const createLeadController = async (req: Request, res: Response) => {
     (async () => {
       try {
         await sendMessageToLead({
-          leadId: lead._id.toString(),
+          leadId: (lead._id as any).toString(),
           messageType: "both",
         });
 

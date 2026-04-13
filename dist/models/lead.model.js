@@ -36,30 +36,88 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
 const LeadSchema = new mongoose_1.Schema({
     fullName: { type: String, trim: true },
-    email: { type: String, lowercase: true, trim: true, index: true },
-    phone: { type: String, trim: true, index: true },
+    email: {
+        type: String,
+        lowercase: true,
+        trim: true,
+        index: true,
+    },
+    phone: {
+        type: String,
+        trim: true,
+        index: true,
+    },
     phoneVerified: { type: Boolean, default: false },
-    source: { type: String, default: "facebook" },
-    formId: { type: String },
+    source: {
+        type: String,
+        default: "facebook",
+        index: true,
+    },
+    formId: { type: String, default: null },
     whenAreYouPlanningToPurchase: { type: String, default: null },
     whatIsYourBudget: { type: String, default: null },
+    // ✅ SAFE MESSAGE HANDLING
     message: {
         type: String,
         default: "No message provided",
+        trim: true,
     },
-    extraFields: { type: mongoose_1.Schema.Types.Mixed, default: {} }, // ⭐ dynamic fields
-    rawData: { type: mongoose_1.Schema.Types.Mixed, default: {} }, // ⭐ full original row
-    receivedAt: { type: Date },
+    extraFields: {
+        type: mongoose_1.Schema.Types.Mixed,
+        default: {},
+    },
+    rawData: {
+        type: mongoose_1.Schema.Types.Mixed,
+        default: {},
+    },
+    receivedAt: {
+        type: Date,
+        default: Date.now,
+    },
+    // 📊 tracking
     reminderCount: { type: Number, default: 0 },
     lastReminderSent: { type: Date, default: null },
-    status: { type: String, default: "new" },
+    status: {
+        type: String,
+        enum: ["new", "contacted", "closed"],
+        default: "new",
+        index: true,
+    },
+    // 🗑️ SOFT DELETE
+    isDeleted: {
+        type: Boolean,
+        default: false,
+        index: true,
+    },
+    deletedAt: {
+        type: Date,
+        default: null,
+    },
+    // 📅 FOLLOW-UP
     followUp: {
         date: { type: Date, default: null },
-        recurrence: { type: String, default: null },
+        recurrence: {
+            type: String,
+            enum: ["once", "tomorrow", "3days", "weekly", null],
+            default: null,
+        },
         message: { type: String, default: null },
         whatsappOptIn: { type: Boolean, default: false },
         active: { type: Boolean, default: false },
     },
-}, { timestamps: true });
+}, {
+    timestamps: true,
+});
+// ✅ GLOBAL FILTER (AUTO HIDE DELETED DATA)
+LeadSchema.pre(/^find/, function (next) {
+    this.where({ isDeleted: false });
+    next();
+});
+LeadSchema.query.withDeleted = function () {
+    return this.where({});
+};
+// ✅ INDEXES (performance boost)
+LeadSchema.index({ createdAt: -1 });
+LeadSchema.index({ phone: 1, email: 1 });
 exports.default = mongoose_1.default.model("Lead", LeadSchema);
 //# sourceMappingURL=lead.model.js.map

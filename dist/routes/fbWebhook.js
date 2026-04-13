@@ -208,7 +208,6 @@ router.post("/facebook", async (req, res) => {
                         email,
                         phone,
                         phoneVerified: fields.phone_number_verified === "true",
-                        // 🔥 MAIN FIX
                         message,
                         source: "facebook",
                         formId: form_id,
