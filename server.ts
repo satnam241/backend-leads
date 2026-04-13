@@ -1,4 +1,4 @@
-import "dotenv/config"; // ✅ sabse top pe
+import "dotenv/config"; 
 
 import express from "express";
 import cors from "cors";

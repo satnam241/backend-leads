@@ -5,8 +5,7 @@ import { sendMessageToLead } from "../services/messageService";
 export const startFollowUpJob = () => {
   console.log("⏰ Follow-up job started...");
 
-  // every 10 seconds (dev) → change to "* * * * *" in production
-  cron.schedule("*/10 * * * * *", async () => {
+  cron.schedule("* * * * *", async () => {
     try {
       console.log("🔄 Checking follow-ups...");
 
@@ -15,7 +14,7 @@ export const startFollowUpJob = () => {
       const leads = await Lead.find({
         "followUp.active": true,
         "followUp.date": { $lte: now },
-      }).limit(50); // 🔥 prevent overload
+      }).limit(30); // 🔥 prevent overload
 
       if (!leads.length) return;
 

@@ -244,7 +244,7 @@ router.post("/facebook", async (req: Request, res: Response) => {
             phoneVerified:
               fields.phone_number_verified === "true",
 
-            // 🔥 MAIN FIX
+            
             message,
 
             source: "facebook",
