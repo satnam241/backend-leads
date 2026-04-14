@@ -131,12 +131,11 @@ const LeadSchema = new Schema<ILead>(
   }
 );
 
-
-LeadSchema.pre(/^find/, function (next) {
+LeadSchema.pre(/^find/, function (this: Query<any, ILead>, next) {
   this.where({
     $or: [
       { isDeleted: false },
-      { isDeleted: { $exists: false } } // 👈 THIS IS THE FIX
+      { isDeleted: { $exists: false } }
     ]
   });
   next();

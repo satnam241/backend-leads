@@ -108,15 +108,18 @@ const LeadSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
-// ✅ GLOBAL FILTER (AUTO HIDE DELETED DATA)
 LeadSchema.pre(/^find/, function (next) {
-    this.where({ isDeleted: false });
+    this.where({
+        $or: [
+            { isDeleted: false },
+            { isDeleted: { $exists: false } }
+        ]
+    });
     next();
 });
 LeadSchema.query.withDeleted = function () {
     return this.where({});
 };
-// ✅ INDEXES (performance boost)
 LeadSchema.index({ createdAt: -1 });
 LeadSchema.index({ phone: 1, email: 1 });
 exports.default = mongoose_1.default.model("Lead", LeadSchema);
