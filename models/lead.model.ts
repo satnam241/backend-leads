@@ -132,9 +132,13 @@ const LeadSchema = new Schema<ILead>(
 );
 
 
-// ✅ GLOBAL FILTER (AUTO HIDE DELETED DATA)
-LeadSchema.pre<Query<any, ILead>>(/^find/, function (next) {
-  this.where({ isDeleted: false });
+LeadSchema.pre(/^find/, function (next) {
+  this.where({
+    $or: [
+      { isDeleted: false },
+      { isDeleted: { $exists: false } } // 👈 THIS IS THE FIX
+    ]
+  });
   next();
 });
 
@@ -144,7 +148,6 @@ LeadSchema.pre<Query<any, ILead>>(/^find/, function (next) {
 };
 
 
-// ✅ INDEXES (performance boost)
 LeadSchema.index({ createdAt: -1 });
 LeadSchema.index({ phone: 1, email: 1 });
 
